@@ -4,7 +4,7 @@ services:
     image: ghcr.io/ksmarty/scanpi:feature-v2
     container_name: scanpi
     ports:
-      - "5123:5123"
+      - "5123:5000"
     volumes:
       - ./scans:/scans
     # environment:
