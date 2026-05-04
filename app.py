@@ -18,34 +18,6 @@ def current_datetime():
     now = dt.datetime.now()
     return now.strftime(DATE_FORMAT)
 
-def get_usb_devices():
-    try:
-        result = subprocess.run(
-            ['lsusb'],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        devices = []
-        for line in result.stdout.strip().split('\n'):
-            if line:
-                parts = line.split()
-                if len(parts) >= 6:
-                    bus = parts[1]
-                    device = parts[3].rstrip(':')
-                    vendor_id = parts[1] if len(parts) > 1 else ''
-                    product_id = parts[3] if len(parts) > 3 else ''
-                    desc = ' '.join(parts[5:])
-                    devices.append({
-                        'id': f"{bus}:{device}",
-                        'bus': bus,
-                        'device': device,
-                        'description': desc
-                    })
-        return devices
-    except Exception as e:
-        return []
-
 def get_scanner_devices():
     try:
         result = subprocess.run(
@@ -111,10 +83,6 @@ def root_path():
 @app.route('/api/devices')
 def api_devices():
     return jsonify(get_scanner_devices())
-
-@app.route('/api/usb')
-def api_usb():
-    return jsonify(get_usb_devices())
 
 @app.route('/api/preview', methods=['POST'])
 def api_preview():

@@ -91,21 +91,6 @@
             margin-right: 0.5rem;
         }
         
-        .usb-list {
-            max-height: 120px;
-            overflow-y: auto;
-            font-size: 0.85rem;
-        }
-        
-        .usb-item {
-            padding: 0.25rem 0;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .usb-item:last-child {
-            border-bottom: none;
-        }
-        
         .preview-container {
             background: #f8f9fa;
             border-radius: 8px;
@@ -167,15 +152,6 @@
             }
         }
         
-        .device-badge {
-            font-size: 0.7rem;
-            padding: 0.15rem 0.4rem;
-            background: var(--secondary-color);
-            color: white;
-            border-radius: 4px;
-            margin-right: 0.5rem;
-        }
-        
         .scan-settings {
             border-left: 3px solid var(--secondary-color);
             padding-left: 1rem;
@@ -206,15 +182,6 @@
                 
                 <div class="split-pane">
                     <div class="controls-panel">
-                        <div class="mb-4">
-                            <label class="form-label">
-                                <i class="bi bi-usb me-1"></i>USB Devices
-                            </label>
-                            <div class="usb-list border rounded p-2 bg-light" id="usbList">
-                                <div class="text-muted small">Loading USB devices...</div>
-                            </div>
-                        </div>
-                        
                         <div class="mb-3">
                             <label for="scanner" class="form-label">
                                 <i class="bi bi-hdd me-1"></i>Select Scanner
@@ -319,7 +286,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const scannerSelect = document.getElementById('scanner');
-        const usbList = document.getElementById('usbList');
         const previewBtn = document.getElementById('previewBtn');
         const submitBtn = document.getElementById('submitBtn');
         const previewImage = document.getElementById('previewImage');
@@ -328,13 +294,8 @@
         
         async function loadDevices() {
             try {
-                const [scannerRes, usbRes] = await Promise.all([
-                    fetch('/api/devices'),
-                    fetch('/api/usb')
-                ]);
-                
-                const scanners = await scannerRes.json();
-                const usbDevices = await usbRes.json();
+                const res = await fetch('/api/devices');
+                const scanners = await res.json();
                 
                 scannerSelect.innerHTML = '<option value="">Auto-detect scanner</option>';
                 scanners.forEach(s => {
@@ -344,19 +305,8 @@
                     if ('{{ selected_scanner }}' === s.id) option.selected = true;
                     scannerSelect.appendChild(option);
                 });
-                
-                if (usbDevices.length === 0) {
-                    usbList.innerHTML = '<div class="text-muted small">No USB devices found</div>';
-                } else {
-                    usbList.innerHTML = usbDevices.map(d => `
-                        <div class="usb-item">
-                            <span class="device-badge">${d.bus}:${d.device}</span>
-                            ${d.description}
-                        </div>
-                    `).join('');
-                }
             } catch (e) {
-                usbList.innerHTML = '<div class="text-danger small">Failed to load devices</div>';
+                console.error('Failed to load devices:', e);
             }
         }
         
