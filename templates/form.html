@@ -130,12 +130,36 @@
             justify-content: center;
             overflow: hidden;
             position: relative;
+            cursor: default;
         }
-        
+
+        .preview-container.has-image {
+            cursor: grab;
+        }
+
+        .preview-container.has-image:active {
+            cursor: grabbing;
+        }
+
         .preview-container canvas {
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
+            transform-origin: center center;
+            user-select: none;
+        }
+
+        .zoom-indicator {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.55);
+            color: #fff;
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
         }
         
         .preview-placeholder {
@@ -350,6 +374,7 @@
                                 <i class="bi bi-card-image d-block mb-2"></i>
                                 <div>Click "Preview" to scan a test image</div>
                             </div>
+                            <div class="zoom-indicator" id="zoomIndicator">100%</div>
                         </div>
                         
                         <div class="edit-controls" id="editControls" style="display: none;">
@@ -503,10 +528,12 @@
                 img.onload = function() {
                     originalImage = img;
                     resetEdits();
+                    resetViewport();
                     applyEdits();
                     previewCanvas.style.display = 'block';
                     editControls.style.display = 'block';
-                    previewStatus.textContent = 'Preview complete - Edit image or scan';
+                    setPreviewHasImage(true);
+                    previewStatus.textContent = 'Preview ready — scroll to zoom, drag to pan, double-click to reset';
                 };
                 img.src = URL.createObjectURL(blob);
             } catch (e) {
@@ -514,6 +541,8 @@
                 previewPlaceholder.innerHTML = `<i class="bi bi-exclamation-triangle text-danger d-block mb-2"></i><div class="text-danger">${e.message}</div>`;
                 previewStatus.textContent = '';
                 editControls.style.display = 'none';
+                setPreviewHasImage(false);
+                resetViewport();
             } finally {
                 previewBtn.disabled = false;
                 previewBtn.innerHTML = '<i class="bi bi-eye me-2"></i>Preview';
@@ -725,6 +754,67 @@
             this.value = this.value.replace(/[^a-zA-Z0-9-_]/g, '');
         });
         
+        // ── Zoom / Pan ────────────────────────────────────────────────────────
+        const previewContainer = document.getElementById('previewContainer');
+        const zoomIndicator    = document.getElementById('zoomIndicator');
+        let vpScale = 1, vpX = 0, vpY = 0;
+        let panning = false, panStart = { x: 0, y: 0 };
+
+        function applyViewport() {
+            previewCanvas.style.transform =
+                `translate(${vpX}px, ${vpY}px) scale(${vpScale})`;
+            zoomIndicator.textContent = `${Math.round(vpScale * 100)}%`;
+        }
+
+        function resetViewport() {
+            vpScale = 1; vpX = 0; vpY = 0;
+            applyViewport();
+        }
+
+        // Wheel → zoom towards cursor
+        previewContainer.addEventListener('wheel', function(e) {
+            if (!originalImage) return;
+            e.preventDefault();
+            const rect   = previewContainer.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left - rect.width  / 2;
+            const mouseY = e.clientY - rect.top  - rect.height / 2;
+            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            const next   = Math.min(Math.max(vpScale * factor, 0.25), 20);
+            const ratio  = next / vpScale;
+            vpX = mouseX + (vpX - mouseX) * ratio;
+            vpY = mouseY + (vpY - mouseY) * ratio;
+            vpScale = next;
+            applyViewport();
+        }, { passive: false });
+
+        // Drag → pan
+        previewContainer.addEventListener('mousedown', function(e) {
+            if (!originalImage || e.button !== 0) return;
+            panning = true;
+            panStart = { x: e.clientX - vpX, y: e.clientY - vpY };
+            previewContainer.classList.add('has-image'); // ensure grab cursor
+        });
+        window.addEventListener('mousemove', function(e) {
+            if (!panning) return;
+            vpX = e.clientX - panStart.x;
+            vpY = e.clientY - panStart.y;
+            applyViewport();
+        });
+        window.addEventListener('mouseup', function() { panning = false; });
+
+        // Double-click → reset zoom/pan
+        previewContainer.addEventListener('dblclick', function() {
+            if (!originalImage) return;
+            resetViewport();
+        });
+
+        // Show/hide zoom indicator with image state
+        function setPreviewHasImage(yes) {
+            previewContainer.classList.toggle('has-image', yes);
+            zoomIndicator.style.display = yes ? 'block' : 'none';
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         loadDevices();
     </script>
 </body>

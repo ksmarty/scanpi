@@ -17,6 +17,7 @@ python3 app.py
 
 ## Important Notes
 
+- **Always commit after making changes.** Every completed change should be committed immediately before moving on.
 - **Scanner hardware access**: Docker on macOS/Windows doesn't support USB passthrough. Use network scanner (eSCL/AirScan) or run SANE server on host.
 - **Version**: Increment `VERSION` in `Dockerfile` (semver format) for each release.
 - **Port**: Default is `5123:5000` in docker-compose (mapped to container port 5000).

@@ -275,9 +275,9 @@ def api_preview():
         data = request.get_json() or {}
         scanner = data.get('scanner', '')
         mode = data.get('mode', 'Gray')
-        # Always use 75 DPI for preview — user-selected resolution can be
-        # thousands of DPI which causes timeouts on a full-bed scan.
-        PREVIEW_RESOLUTION = '75'
+        # Always use 600 DPI for preview — high enough to zoom into detail
+        # without the user needing to run a full scan first.
+        PREVIEW_RESOLUTION = '600'
         
         temp_dir = tempfile.mkdtemp()
         preview_file = os.path.join(temp_dir, f"preview_{uuid.uuid4()}.png")
