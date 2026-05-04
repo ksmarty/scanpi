@@ -35,13 +35,6 @@
 
         <!-- Body -->
         <div class="card-body p-4 flex flex-col min-h-0">
-            {% if message %}
-            <div role="alert" class="alert {{ 'alert-success' if 'successfully' in message else 'alert-error' }} shadow-sm mb-4">
-                <i class="bi bi-{{ 'check-circle-fill' if 'successfully' in message else 'exclamation-triangle-fill' }} text-xl"></i>
-                <span>{{ message }}</span>
-            </div>
-            {% endif %}
-            
             <div class="flex-1 grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-6 min-h-0">
                 
                 <!-- Controls Panel -->
@@ -108,8 +101,10 @@
                     </div>
 
                     <details class="collapse collapse-arrow border border-base-300 bg-base-200 mt-2 mb-2 rounded-lg">
-                        <summary class="collapse-title text-sm font-semibold text-base-content/80 min-h-0 py-2 px-4">
-                            <i class="bi bi-gear mr-2"></i>Advanced Settings
+                        <summary class="collapse-title text-sm font-semibold text-base-content/80 px-4">
+                            <div class="flex items-center">
+                                <i class="bi bi-gear mr-2"></i>Advanced Settings
+                            </div>
                         </summary>
                         <div class="collapse-content px-4 pb-3">
                             <div class="flex items-center gap-3 w-full mt-2">
@@ -704,7 +699,7 @@
         bindSlider('contrast', 'contrastInput', 'c');
         bindSlider('sharpen', 'sharpenInput', 's');
         
-        function submitScan() {
+        async function submitScan() {
             document.getElementById('formName').value = document.getElementById('name').value;
             document.getElementById('formDate').value = document.getElementById('date').value;
             document.getElementById('formMode').value = modeSelect.value;
@@ -723,7 +718,17 @@
             scanOverlay.classList.remove('hidden');
             scanOverlayText.textContent = 'Scanning Document...';
             
-            document.getElementById('scanForm').submit();
+            try {
+                const formData = new FormData(document.getElementById('scanForm'));
+                await fetch('/', { method: 'POST', body: formData });
+                // Force a clean reload so the UI resets completely after a successful scan
+                window.location.href = '/';
+            } catch (e) {
+                console.error(e);
+                alert("Scan submission failed.");
+                submitBtn.disabled = false;
+                scanOverlay.classList.add('hidden');
+            }
         }
         
         previewBtn.addEventListener('click', runPreview);
