@@ -15,21 +15,19 @@ pushd $SCAN_DIRECTORY
 mkdir -p "$FILENAME"
 pushd "$FILENAME"
 
-# Build scanadf command
-SCAN_CMD="scanadf --mode $MODE --source \"$SOURCE\" --resolution $RESOLUTION"
+SCAN_DEVICE_FLAG=""
 if [ -n "$SCANNER_DEVICE" ]; then
-    SCAN_CMD="$SCAN_CMD --device-name \"$SCANNER_DEVICE\""
+    SCAN_DEVICE_FLAG=("-d" "$SCANNER_DEVICE")
 fi
 
-# For flatbed sources, use scanimage (single scan). For ADF, use scanadf (continuous).
 case "$SOURCE" in
     Flatbed|Slide|Negative)
-        scanimage --mode "$MODE" --source "$SOURCE" --resolution "$RESOLUTION" \
-            ${SCANNER_DEVICE:+--device-name "$SCANNER_DEVICE"} \
+        scanimage "${SCAN_DEVICE_FLAG[@]}" --mode "$MODE" --source "$SOURCE" --resolution "$RESOLUTION" \
             --format png -o "image-001.png" 2>>stderr.log 1>>stdout.log || true
         ;;
     *)
-        $SCAN_CMD 2>>stderr.log 1>>stdout.log || true
+        scanadf "${SCAN_DEVICE_FLAG[@]}" --mode "$MODE" --source "$SOURCE" --resolution "$RESOLUTION" \
+            2>>stderr.log 1>>stdout.log || true
         ;;
 esac
 
