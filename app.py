@@ -6,6 +6,7 @@ import tempfile
 import uuid
 import logging
 import re
+import time
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -20,6 +21,19 @@ MODES = os.environ.get("MODES", "Lineart,Halftone,Gray,Color").split(",")
 RESOLUTIONS = os.environ.get("RESOLUTIONS", "50,100,150,200,250,300,350,400,450,500,550,600").split(",")
 DATE_FORMAT = os.environ.get("DATE_FORMAT", "%Y-%m-%d-%H-%M-%S")
 
+CACHE_TTL = 60  # seconds
+_cache = {}
+
+def cache_get(key):
+    entry = _cache.get(key)
+    if entry and time.time() - entry['ts'] < CACHE_TTL:
+        logger.debug(f"Cache hit: {key}")
+        return entry['value']
+    return None
+
+def cache_set(key, value):
+    _cache[key] = {'value': value, 'ts': time.time()}
+
 app = Flask(__name__)
 
 def current_datetime():
@@ -27,6 +41,10 @@ def current_datetime():
     return now.strftime(DATE_FORMAT)
 
 def get_scanner_devices():
+    cached = cache_get('devices')
+    if cached is not None:
+        return cached
+
     try:
         result = subprocess.run(
             ['scanadf', '--list-devices'],
@@ -65,6 +83,7 @@ def get_scanner_devices():
                     })
         
         logger.info(f"Found scanner devices: {devices}")
+        cache_set('devices', devices)
         return devices
     except Exception as e:
         logger.error(f"Error listing devices: {e}")
@@ -155,17 +174,11 @@ def api_capabilities():
             'resolutions': RESOLUTIONS
         })
     
-    available = get_scanner_devices()
-    available_ids = [d['id'] for d in available]
-    
-    if scanner not in available_ids:
-        logger.warning(f"Scanner '{scanner}' not in available devices: {available_ids}")
-        return jsonify({
-            'sources': SOURCES,
-            'modes': MODES,
-            'resolutions': RESOLUTIONS
-        })
-    
+    cache_key = f'capabilities:{scanner}'
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
     try:
         cmd = ['scanimage', '-d', scanner, '--all-options']
         
@@ -235,6 +248,7 @@ def api_capabilities():
             capabilities['resolutions'] = ['75', '100', '150', '200', '300', '400', '600']
             logger.info("Using default resolutions")
         
+        cache_set(cache_key, capabilities)
         return jsonify(capabilities)
         
     except Exception as e:
