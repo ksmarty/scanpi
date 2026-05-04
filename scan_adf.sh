@@ -21,8 +21,17 @@ if [ -n "$SCANNER_DEVICE" ]; then
     SCAN_CMD="$SCAN_CMD --device-name \"$SCANNER_DEVICE\""
 fi
 
-# Scan the document
-$SCAN_CMD 2>>stderr.log 1>>stdout.log || true
+# For flatbed sources, use scanimage (single scan). For ADF, use scanadf (continuous).
+case "$SOURCE" in
+    Flatbed|Slide|Negative)
+        scanimage --mode "$MODE" --source "$SOURCE" --resolution "$RESOLUTION" \
+            ${SCANNER_DEVICE:+--device-name "$SCANNER_DEVICE"} \
+            --format png -o "image-001.png" 2>>stderr.log 1>>stdout.log || true
+        ;;
+    *)
+        $SCAN_CMD 2>>stderr.log 1>>stdout.log || true
+        ;;
+esac
 
 # Convert to pdf and apply OCR
 convert image* "$FILENAME.pdf" 2>>stderr.log 1>>stdout.log
