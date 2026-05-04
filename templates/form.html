@@ -1,452 +1,196 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ScanPi - Document Scanner</title>
-    <!-- <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}"> -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- daisyUI + Tailwind -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.11.1/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Icons & Cropper -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
-    <style>
-        :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #3498db;
-            --accent-color: #27ae60;
-            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        
-        html, body {
-            height: 100%;
-            overflow: hidden;
-        }
-
-        body {
-            background: var(--bg-gradient);
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .app-wrapper {
-            flex: 1;
-            padding: 0.75rem;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-        }
-        
-        .card {
-            border: none;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            background: rgba(255, 255, 255, 0.95);
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-            overflow: hidden;
-        }
-        
-        .card-body {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-            overflow: hidden;
-        }
-        
-            background: var(--primary-color);
-            color: white;
-            border-radius: 16px 16px 0 0 !important;
-            padding: 1.25rem;
-        }
-        
-        .form-label {
-            font-weight: 600;
-            color: var(--primary-color);
-            margin-bottom: 0.5rem;
-        }
-        
-        .form-control, .form-select {
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            transition: all 0.3s ease;
-        }
-        
-        .form-control:focus, .form-select:focus {
-            border-color: var(--secondary-color);
-            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
-        }
-        
-        .form-control[readonly] {
-            background-color: #f8f9fa;
-            cursor: not-allowed;
-        }
-        
-        .btn-scan {
-            background: linear-gradient(135deg, var(--accent-color) 0%, #219a52 100%);
-            border: none;
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-            font-weight: 600;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-scan:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(39, 174, 96, 0.4);
-        }
-        
-        .btn-preview {
-            background: linear-gradient(135deg, var(--secondary-color) 0%, #2980b9 100%);
-            border: none;
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-        }
-        
-        .btn-preview:hover {
-            box-shadow: 0 10px 30px rgba(52, 152, 219, 0.4);
-        }
-        
-        .btn:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-        
-        .scanner-icon {
-            font-size: 1.5rem;
-            margin-right: 0.5rem;
-        }
-        
-        .preview-container {
-            background: #1a1a1a;
-            border-radius: 8px;
-            flex: 1;
-            min-height: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: relative;
-        }
-        
-        .preview-placeholder {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #6c757d;
-            text-align: center;
-            pointer-events: none;
-            width: 100%;
-        }
-        
-        .preview-placeholder i {
-            font-size: 4rem;
-            opacity: 0.3;
-        }
-
-        .scan-overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-            color: white;
-            display: none;
-        }
-        
-        .edit-controls {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-top: 0.75rem;
-        }
-        
-        .edit-btn {
-            padding: 0.5rem 0.75rem;
-            font-size: 0.9rem;
-        }
-        
-        .edit-btn.active {
-            background: var(--secondary-color);
-            color: white;
-        }
-        
-        .slider-container {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .slider-container input[type="range"] {
-            flex: 1;
-        }
-        
-        .slider-container label {
-            min-width: 80px;
-            font-size: 0.85rem;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        .scanning {
-            animation: pulse 1.5s infinite;
-        }
-        
-        .spinner-icon {
-            width: 20px;
-            height: 20px;
-            border: 2px solid #fff;
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .split-pane {
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 1.5rem;
-            align-items: stretch;
-            flex: 1;
-            min-height: 0;
-        }
-        
-        .controls-panel {
-            overflow-y: auto;
-        }
-
-        .preview-panel {
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-        }
-        
-        @media (max-width: 992px) {
-            .split-pane {
-                grid-template-columns: 1fr;
-                overflow-y: auto;
-            }
-            .preview-panel {
-                min-height: 400px;
-            }
-        }
-        
-        .crop-overlay {
-            position: absolute;
-            border: 2px dashed var(--accent-color);
-            background: rgba(39, 174, 96, 0.1);
-            cursor: move;
-            display: none;
-        }
-        
-        .crop-handle {
-            position: absolute;
-            width: 12px;
-            height: 12px;
-            background: var(--accent-color);
-            border-radius: 2px;
-        }
-    </style>
 </head>
-<body>
-    <div class="app-wrapper">
-        <div class="card">
-            <div class="card-header d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-scanner scanner-icon"></i>
-                    <div>
-                        <h5 class="mb-0">ScanPi</h5>
-                        <small class="opacity-75">Document Scanner</small>
+<body class="h-screen w-screen overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 p-4 flex flex-col font-sans">
+    
+    <div class="card bg-base-100 shadow-2xl flex-1 overflow-hidden flex flex-col">
+        <!-- Header -->
+        <div class="bg-neutral text-neutral-content p-4 flex items-center justify-between shadow-sm z-10 rounded-t-2xl">
+            <div class="flex items-center gap-3">
+                <i class="bi bi-scanner text-3xl"></i>
+                <div>
+                    <h5 class="font-bold text-xl leading-none">ScanPi</h5>
+                    <div class="text-xs opacity-75">Document Scanner</div>
+                </div>
+            </div>
+            <span class="badge badge-outline">v2.3</span>
+        </div>
+
+        <!-- Body -->
+        <div class="card-body p-4 flex flex-col min-h-0">
+            {% if message %}
+            <div role="alert" class="alert {{ 'alert-success' if 'successfully' in message else 'alert-error' }} shadow-sm mb-4">
+                <i class="bi bi-{{ 'check-circle-fill' if 'successfully' in message else 'exclamation-triangle-fill' }} text-xl"></i>
+                <span>{{ message }}</span>
+            </div>
+            {% endif %}
+            
+            <div class="flex-1 grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-6 min-h-0">
+                
+                <!-- Controls Panel -->
+                <div class="flex flex-col gap-3 overflow-y-auto pr-2">
+                    <div class="form-control w-full">
+                        <label class="label pt-0 pb-1" for="scanner">
+                            <span class="label-text font-bold text-primary"><i class="bi bi-hdd mr-1"></i>Select Scanner</span>
+                        </label>
+                        <select class="select select-bordered select-sm w-full text-base h-10" id="scanner" name="scanner">
+                            <option value="">Auto-detect scanner</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-control w-full">
+                        <label class="label pt-0 pb-1" for="name">
+                            <span class="label-text font-bold text-primary"><i class="bi bi-file-text mr-1"></i>Document Name</span>
+                        </label>
+                        <input type="text" class="input input-bordered input-sm w-full text-base h-10" id="name" name="name" placeholder="Enter document name" required>
+                    </div>
+                    
+                    <div class="form-control w-full">
+                        <label class="label pt-0 pb-1" for="date">
+                            <span class="label-text font-bold text-primary"><i class="bi bi-calendar mr-1"></i>Date</span>
+                        </label>
+                        <input type="text" class="input input-bordered input-sm w-full text-base h-10 bg-base-200 cursor-not-allowed" id="date" name="date" value="{{ default_date }}" readonly>
+                    </div>
+                    
+                    <div class="form-control w-full">
+                        <label class="label pt-0 pb-1" for="mode">
+                            <span class="label-text font-bold text-primary"><i class="bi bi-palette mr-1"></i>Scan Mode</span>
+                        </label>
+                        <select class="select select-bordered select-sm w-full text-base h-10" id="mode" name="mode">
+                            {% for mode in modes %}
+                            <option value="{{ mode }}">{{ mode }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-control w-full">
+                        <label class="label pt-0 pb-1" for="resolution">
+                            <span class="label-text font-bold text-primary"><i class="bi bi-aspect-ratio mr-1"></i>Resolution (DPI)</span>
+                        </label>
+                        <select class="select select-bordered select-sm w-full text-base h-10" id="resolution" name="resolution">
+                            {% for res in resolutions %}
+                            <option value="{{ res }}" {{ 'selected' if res == '600' else '' }}>{{ res }} DPI</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="form-control w-full mb-2">
+                        <label class="label pt-0 pb-1" for="source">
+                            <span class="label-text font-bold text-primary"><i class="bi bi-upc mr-1"></i>Scanner Source</span>
+                        </label>
+                        <select class="select select-bordered select-sm w-full text-base h-10" id="source" name="source">
+                            {% for src in sources %}
+                            <option value="{{ src }}">{{ src }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="flex gap-2 mt-auto pt-2">
+                        <button type="button" class="btn btn-secondary flex-1" id="previewBtn">
+                            <i class="bi bi-eye"></i>Preview
+                        </button>
+                        <button type="button" class="btn btn-primary flex-1" id="submitBtn">
+                            <i class="bi bi-scan"></i>Scan
+                        </button>
                     </div>
                 </div>
-                <span class="badge bg-light text-dark">v2.2</span>
-            </div>
-            <div class="card-body p-3">
-                {% if message %}
-                <div class="alert alert-{{ 'success' if 'successfully' in message else 'danger' }} d-flex align-items-center mb-4" role="alert">
-                    <i class="bi bi-{{ 'check-circle-fill' if 'successfully' in message else 'exclamation-triangle-fill' }} me-2"></i>
-                    {{ message }}
-                </div>
-                {% endif %}
                 
-                <div class="split-pane">
-                    <div class="controls-panel">
-                        <div class="mb-3">
-                            <label for="scanner" class="form-label">
-                                <i class="bi bi-hdd me-1"></i>Select Scanner
-                            </label>
-                            <select class="form-select" id="scanner" name="scanner">
-                                <option value="">Auto-detect scanner</option>
-                            </select>
+                <!-- Preview Panel -->
+                <div class="flex flex-col min-h-0">
+                    <label class="font-bold text-primary mb-2 flex-none">
+                        <i class="bi bi-image mr-1"></i>Preview
+                    </label>
+                    <div class="bg-base-200 rounded-xl flex-1 min-h-0 flex items-center justify-center relative overflow-hidden shadow-inner border border-base-300" id="previewContainer">
+                        <img id="previewImage" class="hidden max-w-full">
+                        <div id="previewPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-base-content/30 pointer-events-none">
+                            <i class="bi bi-card-image text-6xl mb-3"></i>
+                            <div class="font-medium">Click "Preview" to scan a test image</div>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="name" class="form-label">
-                                <i class="bi bi-file-text me-1"></i>Document Name
-                            </label>
-                            <input type="text" class="form-control" id="name" name="name" 
-                                   placeholder="Enter document name" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="date" class="form-label">
-                                <i class="bi bi-calendar me-1"></i>Date
-                            </label>
-                            <input type="text" class="form-control" id="date" name="date" 
-                                   value="{{ default_date }}" readonly>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="mode" class="form-label">
-                                <i class="bi bi-palette me-1"></i>Scan Mode
-                            </label>
-                            <select class="form-select" id="mode" name="mode">
-                                {% for mode in modes %}
-                                <option value="{{ mode }}">{{ mode }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="resolution" class="form-label">
-                                <i class="bi bi-aspect-ratio me-1"></i>Resolution (DPI)
-                            </label>
-                            <select class="form-select" id="resolution" name="resolution">
-                                {% for res in resolutions %}
-                                <option value="{{ res }}" {{ 'selected' if res == '600' else '' }}>{{ res }} DPI</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label for="source" class="form-label">
-                                <i class="bi bi-upc me-1"></i>Scanner Source
-                            </label>
-                            <select class="form-select" id="source" name="source">
-                                {% for src in sources %}
-                                <option value="{{ src }}">{{ src }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        
-                        <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-preview text-white flex-fill" id="previewBtn">
-                                <i class="bi bi-eye me-2"></i>Preview
-                            </button>
-                            <button type="button" class="btn btn-scan text-white flex-fill" id="submitBtn">
-                                <i class="bi bi-scan me-2"></i>Scan
-                            </button>
+                        <div id="scanOverlay" class="absolute inset-0 bg-neutral/80 flex flex-col items-center justify-center text-white z-10 hidden backdrop-blur-sm transition-all">
+                            <span class="loading loading-spinner loading-lg text-primary mb-4"></span>
+                            <div id="scanOverlayText" class="text-lg font-medium tracking-wide">Scanning...</div>
                         </div>
                     </div>
                     
-                    <div class="preview-panel">
-                        <label class="form-label">
-                            <i class="bi bi-image me-1"></i>Preview
-                        </label>
-                        <div class="preview-container" id="previewContainer">
-                            <img id="previewImage" style="display: none; max-width: 100%;">
-                            <div class="preview-placeholder" id="previewPlaceholder">
-                                <i class="bi bi-card-image d-block mb-2"></i>
-                                <div>Click "Preview" to scan a test image</div>
+                    <div class="bg-base-200 rounded-xl p-4 mt-3 shadow-inner border border-base-300 hidden flex-none" id="editControls">
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            <button type="button" class="btn btn-sm btn-outline" id="panBtn" title="Pan Image">
+                                <i class="bi bi-arrows-move"></i> Pan
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline" id="cropBoxBtn" title="Draw Crop Box">
+                                <i class="bi bi-crop"></i> Crop Box
+                            </button>
+                            <div class="join">
+                                <button type="button" class="btn btn-sm btn-outline join-item" id="rotateLeftBtn" title="Rotate Left">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline join-item" id="rotateRightBtn" title="Rotate Right">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
                             </div>
-                            <div class="scan-overlay" id="scanOverlay">
-                                <div class="spinner-border text-light mb-2" style="width: 3rem; height: 3rem;" role="status"></div>
-                                <div id="scanOverlayText">Scanning...</div>
-                            </div>
-                        </div>
-                        
-                        <div class="edit-controls" id="editControls" style="display: none;">
-                            <div class="d-flex flex-wrap gap-2 mb-3">
-                                <button type="button" class="btn btn-outline-secondary edit-btn" id="panBtn" title="Pan Image">
-                                    <i class="bi bi-arrows-move"></i> Pan
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary edit-btn" id="cropBoxBtn" title="Draw Crop Box">
-                                    <i class="bi bi-crop"></i> Crop Box
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary edit-btn" id="rotateLeftBtn" title="Rotate Left">
-                                    <i class="bi bi-arrow-counterclockwise"></i> Rotate Left
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary edit-btn" id="rotateRightBtn" title="Rotate Right">
-                                    <i class="bi bi-arrow-clockwise"></i> Rotate Right
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary edit-btn" id="flipHBtn" title="Flip Horizontal">
+                            <div class="join">
+                                <button type="button" class="btn btn-sm btn-outline join-item" id="flipHBtn" title="Flip Horizontal">
                                     <i class="bi bi-arrow-left-right"></i> Flip H
                                 </button>
-                                <button type="button" class="btn btn-outline-secondary edit-btn" id="flipVBtn" title="Flip Vertical">
+                                <button type="button" class="btn btn-sm btn-outline join-item" id="flipVBtn" title="Flip Vertical">
                                     <i class="bi bi-arrow-up-down"></i> Flip V
                                 </button>
-                                <button type="button" class="btn btn-outline-secondary edit-btn" id="resetBtn" title="Reset View">
-                                    <i class="bi bi-arrow-counterclockwise"></i> Reset
-                                </button>
                             </div>
-                            
-                            <div class="row g-2 mb-2">
-                                <div class="col-sm-6">
-                                    <div class="slider-container">
-                                        <label style="min-width: 90px;">Zoom Speed</label>
-                                        <input type="range" class="form-range" id="zoomSpeed" min="0.05" max="0.5" step="0.05" value="0.1">
-                                        <span id="zoomSpeedVal" style="min-width: 30px; text-align: right;">0.1</span>
-                                    </div>
-                                </div>
-                                <div class="col-sm-6">
-                                    <div class="slider-container">
-                                        <label style="min-width: 90px;">Sharpen</label>
-                                        <input type="range" class="form-range" id="sharpen" min="0" max="100" value="0">
-                                        <span id="sharpenVal" style="min-width: 30px; text-align: right;">0</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row g-2">
-                                <div class="col-sm-6">
-                                    <div class="slider-container">
-                                        <label style="min-width: 90px;">Brightness</label>
-                                        <input type="range" class="form-range" id="brightness" min="-100" max="100" value="0">
-                                        <span id="brightnessVal" style="min-width: 30px; text-align: right;">0</span>
-                                    </div>
-                                </div>
-                                <div class="col-sm-6">
-                                    <div class="slider-container">
-                                        <label style="min-width: 90px;">Contrast</label>
-                                        <input type="range" class="form-range" id="contrast" min="-100" max="100" value="0">
-                                        <span id="contrastVal" style="min-width: 30px; text-align: right;">0</span>
-                                    </div>
-                                </div>
-                            </div>
+                            <button type="button" class="btn btn-sm btn-ghost ml-auto" id="resetBtn" title="Reset View">
+                                <i class="bi bi-arrow-counterclockwise"></i> Reset
+                            </button>
                         </div>
                         
-                        <div class="mt-2 text-muted small text-center" id="previewStatus"></div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                            <div class="flex items-center gap-3">
+                                <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Zoom Speed</label>
+                                <input type="range" class="range range-xs range-primary flex-1" id="zoomSpeed" min="0.05" max="0.5" step="0.05" value="0.1">
+                                <span id="zoomSpeedVal" class="w-8 text-right text-sm font-mono opacity-80">0.1</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Sharpen</label>
+                                <input type="range" class="range range-xs range-primary flex-1" id="sharpen" min="0" max="100" value="0">
+                                <span id="sharpenVal" class="w-8 text-right text-sm font-mono opacity-80">0</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Brightness</label>
+                                <input type="range" class="range range-xs range-primary flex-1" id="brightness" min="-100" max="100" value="0">
+                                <span id="brightnessVal" class="w-8 text-right text-sm font-mono opacity-80">0</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Contrast</label>
+                                <input type="range" class="range range-xs range-primary flex-1" id="contrast" min="-100" max="100" value="0">
+                                <span id="contrastVal" class="w-8 text-right text-sm font-mono opacity-80">0</span>
+                            </div>
+                        </div>
                     </div>
+                    
+                    <div class="mt-2 text-center text-sm opacity-60 flex-none h-5" id="previewStatus"></div>
                 </div>
-                
-                <form method="POST" id="scanForm" style="display: none;">
-                    <input type="hidden" name="name" id="formName">
-                    <input type="hidden" name="date" id="formDate">
-                    <input type="hidden" name="mode" id="formMode">
-                    <input type="hidden" name="resolution" id="formResolution">
-                    <input type="hidden" name="source" id="formSource">
-                    <input type="hidden" name="scanner" id="formScanner">
-                    <input type="hidden" name="edited_image" id="editedImage">
-                </form>
             </div>
+            
+            <form method="POST" id="scanForm" class="hidden">
+                <input type="hidden" name="name" id="formName">
+                <input type="hidden" name="date" id="formDate">
+                <input type="hidden" name="mode" id="formMode">
+                <input type="hidden" name="resolution" id="formResolution">
+                <input type="hidden" name="source" id="formSource">
+                <input type="hidden" name="scanner" id="formScanner">
+                <input type="hidden" name="edited_image" id="editedImage">
+            </form>
         </div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
     <script>
         const scannerSelect = document.getElementById('scanner');
@@ -508,7 +252,6 @@
                     resolutionSelect.innerHTML = caps.resolutions.map(r =>
                         `<option value="${r}" ${r === '600' ? 'selected' : ''}>${r} DPI</option>`
                     ).join('');
-                    // Fall back to closest to 600 if 600 isn't in the list
                     if (!caps.resolutions.includes('600')) {
                         const closest = caps.resolutions.reduce((a, b) =>
                             Math.abs(parseInt(b) - 600) < Math.abs(parseInt(a) - 600) ? b : a
@@ -527,7 +270,7 @@
             const resolution = resolutionSelect.value;
             
             previewBtn.disabled = true;
-            scanOverlay.style.display = 'flex';
+            scanOverlay.classList.remove('hidden');
             scanOverlayText.textContent = 'Generating preview...';
             previewStatus.textContent = 'Scanning...';
             
@@ -550,9 +293,9 @@
                     resetEdits();
                     
                     previewImage.src = img.src;
-                    previewImage.style.display = 'block';
-                    previewPlaceholder.style.display = 'none';
-                    editControls.style.display = 'block';
+                    previewImage.classList.remove('hidden');
+                    previewPlaceholder.classList.add('hidden');
+                    editControls.classList.remove('hidden');
                     
                     if (cropper) cropper.destroy();
                     cropper = new Cropper(previewImage, {
@@ -567,16 +310,16 @@
                 };
                 img.src = URL.createObjectURL(blob);
             } catch (e) {
-                previewImage.style.display = 'none';
+                previewImage.classList.add('hidden');
                 if (cropper) cropper.destroy();
                 cropper = null;
-                previewPlaceholder.style.display = 'block';
-                previewPlaceholder.innerHTML = `<i class="bi bi-exclamation-triangle text-danger d-block mb-2"></i><div class="text-danger">${e.message}</div>`;
+                previewPlaceholder.classList.remove('hidden');
+                previewPlaceholder.innerHTML = `<i class="bi bi-exclamation-triangle text-error text-6xl block mb-3"></i><div class="text-error font-medium">${e.message}</div>`;
                 previewStatus.textContent = '';
-                editControls.style.display = 'none';
+                editControls.classList.add('hidden');
             } finally {
                 previewBtn.disabled = false;
-                scanOverlay.style.display = 'none';
+                scanOverlay.classList.add('hidden');
             }
         }
         
@@ -614,20 +357,17 @@
             }
             
             ctx.putImageData(imgData, 0, 0);
-            // Replace the cropper source image without resetting zoom/cropbox (true flag)
             cropper.replace(canvas.toDataURL('image/png'), true);
         }
         
         function applyBrightnessContrast(imageData, brightness, contrast) {
             const data = imageData.data;
             const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-            
             for (let i = 0; i < data.length; i += 4) {
                 data[i] = factor * (data[i] - 128) + 128 + brightness;
                 data[i + 1] = factor * (data[i + 1] - 128) + 128 + brightness;
                 data[i + 2] = factor * (data[i + 2] - 128) + 128 + brightness;
             }
-            
             return imageData;
         }
         
@@ -640,9 +380,7 @@
                 -amount, 1 + 4 * amount, -amount,
                 0, -amount, 0
             ];
-            
             const copy = new Uint8ClampedArray(data);
-            
             for (let y = 1; y < height - 1; y++) {
                 for (let x = 1; x < width - 1; x++) {
                     for (let c = 0; c < 3; c++) {
@@ -657,7 +395,6 @@
                     }
                 }
             }
-            
             return imageData;
         }
         
@@ -690,9 +427,7 @@
         
         document.getElementById('zoomSpeed').addEventListener('input', function() {
             document.getElementById('zoomSpeedVal').textContent = this.value;
-            if (cropper) {
-                cropper.options.wheelZoomRatio = parseFloat(this.value);
-            }
+            if (cropper) cropper.options.wheelZoomRatio = parseFloat(this.value);
         });
         
         document.getElementById('brightness').addEventListener('input', function() {
@@ -728,8 +463,6 @@
             document.getElementById('formScanner').value = scannerSelect.value;
             
             if (cropper) {
-                // If a crop box exists, getCroppedCanvas() yields that area.
-                // If no box, it yields the whole canvas (with rotation/flip applied).
                 const finalCanvas = cropper.getCroppedCanvas();
                 if (finalCanvas) {
                     document.getElementById('editedImage').value = finalCanvas.toDataURL('image/png');
@@ -737,7 +470,7 @@
             }
             
             submitBtn.disabled = true;
-            scanOverlay.style.display = 'flex';
+            scanOverlay.classList.remove('hidden');
             scanOverlayText.textContent = 'Scanning Document...';
             
             document.getElementById('scanForm').submit();
@@ -747,76 +480,13 @@
         submitBtn.addEventListener('click', submitScan);
         
         scannerSelect.addEventListener('change', function() {
-            if (this.value) {
-                loadCapabilities(this.value);
-            }
+            if (this.value) loadCapabilities(this.value);
         });
         
         document.getElementById('name').addEventListener('input', function(e) {
             this.value = this.value.replace(/[^a-zA-Z0-9-_]/g, '');
         });
         
-        // ── Zoom / Pan ────────────────────────────────────────────────────────
-        const previewContainer = document.getElementById('previewContainer');
-        const zoomIndicator    = document.getElementById('zoomIndicator');
-        let vpScale = 1, vpX = 0, vpY = 0;
-        let panning = false, panStart = { x: 0, y: 0 };
-
-        function applyViewport() {
-            previewCanvas.style.transform =
-                `translate(${vpX}px, ${vpY}px) scale(${vpScale})`;
-            zoomIndicator.textContent = `${Math.round(vpScale * 100)}%`;
-        }
-
-        function resetViewport() {
-            vpScale = 1; vpX = 0; vpY = 0;
-            applyViewport();
-        }
-
-        // Wheel → zoom towards cursor
-        previewContainer.addEventListener('wheel', function(e) {
-            if (!originalImage) return;
-            e.preventDefault();
-            const rect   = previewContainer.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left - rect.width  / 2;
-            const mouseY = e.clientY - rect.top  - rect.height / 2;
-            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-            const next   = Math.min(Math.max(vpScale * factor, 0.25), 20);
-            const ratio  = next / vpScale;
-            vpX = mouseX + (vpX - mouseX) * ratio;
-            vpY = mouseY + (vpY - mouseY) * ratio;
-            vpScale = next;
-            applyViewport();
-        }, { passive: false });
-
-        // Drag → pan
-        previewContainer.addEventListener('mousedown', function(e) {
-            if (!originalImage || e.button !== 0) return;
-            panning = true;
-            panStart = { x: e.clientX - vpX, y: e.clientY - vpY };
-            previewContainer.classList.add('has-image'); // ensure grab cursor
-        });
-        window.addEventListener('mousemove', function(e) {
-            if (!panning) return;
-            vpX = e.clientX - panStart.x;
-            vpY = e.clientY - panStart.y;
-            applyViewport();
-        });
-        window.addEventListener('mouseup', function() { panning = false; });
-
-        // Double-click → reset zoom/pan
-        previewContainer.addEventListener('dblclick', function() {
-            if (!originalImage) return;
-            resetViewport();
-        });
-
-        // Show/hide zoom indicator with image state
-        function setPreviewHasImage(yes) {
-            previewContainer.classList.toggle('has-image', yes);
-            zoomIndicator.style.display = yes ? 'block' : 'none';
-        }
-        // ─────────────────────────────────────────────────────────────────────
-
         loadDevices();
     </script>
 </body>
