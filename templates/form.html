@@ -292,6 +292,10 @@
         const previewPlaceholder = document.getElementById('previewPlaceholder');
         const previewStatus = document.getElementById('previewStatus');
         
+        const modeSelect = document.getElementById('mode');
+        const resolutionSelect = document.getElementById('resolution');
+        const sourceSelect = document.getElementById('source');
+        
         async function loadDevices() {
             try {
                 const res = await fetch('/api/devices');
@@ -305,8 +309,31 @@
                     if ('{{ selected_scanner }}' === s.id) option.selected = true;
                     scannerSelect.appendChild(option);
                 });
+                
+                if (scanners.length === 1) {
+                    loadCapabilities(scanners[0].id);
+                }
             } catch (e) {
                 console.error('Failed to load devices:', e);
+            }
+        }
+        
+        async function loadCapabilities(scanner) {
+            try {
+                const res = await fetch(`/api/capabilities?scanner=${encodeURIComponent(scanner)}`);
+                const caps = await res.json();
+                
+                if (caps.sources && caps.sources.length) {
+                    sourceSelect.innerHTML = caps.sources.map(s => `<option value="${s}">${s}</option>`).join('');
+                }
+                if (caps.modes && caps.modes.length) {
+                    modeSelect.innerHTML = caps.modes.map(m => `<option value="${m}">${m}</option>`).join('');
+                }
+                if (caps.resolutions && caps.resolutions.length) {
+                    resolutionSelect.innerHTML = caps.resolutions.map(r => `<option value="${r}">${r} DPI</option>`).join('');
+                }
+            } catch (e) {
+                console.error('Failed to load capabilities:', e);
             }
         }
         
@@ -364,6 +391,12 @@
         
         previewBtn.addEventListener('click', runPreview);
         submitBtn.addEventListener('click', submitScan);
+        
+        scannerSelect.addEventListener('change', function() {
+            if (this.value) {
+                loadCapabilities(this.value);
+            }
+        });
         
         document.getElementById('name').addEventListener('input', function(e) {
             this.value = this.value.replace(/[^a-zA-Z0-9-_]/g, '');

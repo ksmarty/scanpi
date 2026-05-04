@@ -84,6 +84,59 @@ def root_path():
 def api_devices():
     return jsonify(get_scanner_devices())
 
+@app.route('/api/capabilities', methods=['GET'])
+def api_capabilities():
+    scanner = request.args.get('scanner', '')
+    
+    try:
+        cmd = ['scanadf', '--help']
+        if scanner:
+            cmd.extend(['--device', scanner])
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        capabilities = {
+            'sources': [],
+            'modes': [],
+            'resolutions': []
+        }
+        
+        current_section = None
+        for line in result.stdout.split('\n'):
+            line = line.strip()
+            
+            if 'source' in line.lower():
+                current_section = 'sources'
+            elif 'mode' in line.lower():
+                current_section = 'modes'
+            elif 'resolution' in line.lower():
+                current_section = 'resolutions'
+            
+            if current_section and line and not line.startswith('-') and not line.startswith('--'):
+                parts = line.split()
+                for part in parts:
+                    if part not in ['Source', 'Mode', 'Resolution', ':']:
+                        val = part.strip().rstrip(',').strip()
+                        if val and val not in capabilities[current_section]:
+                            capabilities[current_section].append(val)
+        
+        if not capabilities['sources']:
+            capabilities['sources'] = ['ADF Front', 'ADF Back', 'ADF Duplex']
+        if not capabilities['modes']:
+            capabilities['modes'] = ['Lineart', 'Halftone', 'Gray', 'Color']
+        if not capabilities['resolutions']:
+            capabilities['resolutions'] = ['75', '100', '150', '200', '300', '400', '600']
+        
+        return jsonify(capabilities)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/preview', methods=['POST'])
 def api_preview():
     try:
