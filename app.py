@@ -275,9 +275,14 @@ def api_preview():
         data = request.get_json() or {}
         scanner = data.get('scanner', '')
         mode = data.get('mode', 'Gray')
-        # Always use 600 DPI for preview — high enough to zoom into detail
-        # without the user needing to run a full scan first.
-        PREVIEW_RESOLUTION = '600'
+        # Use the lowest available resolution (closest to 50 DPI) for fast previews.
+        # Pull from cached capabilities so we don't hit the scanner again.
+        caps = get_capabilities(scanner) if scanner else {}
+        available_res = [int(r) for r in caps.get('resolutions', []) if r.isdigit()]
+        if available_res:
+            PREVIEW_RESOLUTION = str(min(available_res, key=lambda r: abs(r - 50)))
+        else:
+            PREVIEW_RESOLUTION = '50'
         
         temp_dir = tempfile.mkdtemp()
         preview_file = os.path.join(temp_dir, f"preview_{uuid.uuid4()}.png")

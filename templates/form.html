@@ -338,7 +338,7 @@
                             </label>
                             <select class="form-select" id="resolution" name="resolution">
                                 {% for res in resolutions %}
-                                <option value="{{ res }}" {{ 'selected' if res == '300' else '' }}>{{ res }} DPI</option>
+                                <option value="{{ res }}" {{ 'selected' if res == '600' else '' }}>{{ res }} DPI</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -493,7 +493,16 @@
                     modeSelect.innerHTML = caps.modes.map(m => `<option value="${m}">${m}</option>`).join('');
                 }
                 if (caps.resolutions && caps.resolutions.length) {
-                    resolutionSelect.innerHTML = caps.resolutions.map(r => `<option value="${r}">${r} DPI</option>`).join('');
+                    resolutionSelect.innerHTML = caps.resolutions.map(r =>
+                        `<option value="${r}" ${r === '600' ? 'selected' : ''}>${r} DPI</option>`
+                    ).join('');
+                    // Fall back to closest to 600 if 600 isn't in the list
+                    if (!caps.resolutions.includes('600')) {
+                        const closest = caps.resolutions.reduce((a, b) =>
+                            Math.abs(parseInt(b) - 600) < Math.abs(parseInt(a) - 600) ? b : a
+                        );
+                        resolutionSelect.value = closest;
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load capabilities:', e);

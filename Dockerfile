@@ -1,4 +1,4 @@
-# VERSION: 2.2.0 - Increment this for each release
+# VERSION: 2.3.0 - Increment this for each release
 # https://semver.org/
 
 FROM python:3.11-slim-bookworm
@@ -23,7 +23,7 @@ COPY . .
 
 ENV SCAN_DIRECTORY=/scans \
     ROOT_PATH=/ \
-    VERSION=2.2.0 \
+    VERSION=2.3.0 \
     DEBUG=False
 
 RUN mkdir -p /scans /var/lock && \
