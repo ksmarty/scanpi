@@ -2,8 +2,8 @@
 set -x
 # set -e
 
-SCAN_DIRECTORY=${SCAN_DIRECTORY:-/mnt/scan}
-PROCESSING_LOCKFILE=/var/lock/.scanlock
+SCAN_DIRECTORY=${SCAN_DIRECTORY:-/scans}
+PROCESSING_LOCKFILE=${SCAN_DIRECTORY}/.scanlock
 touch "$PROCESSING_LOCKFILE"
 
 # Acquire lock for scanning and processing
