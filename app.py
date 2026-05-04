@@ -7,6 +7,7 @@ import uuid
 import logging
 import re
 import time
+import threading
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -174,10 +175,13 @@ def api_capabilities():
             'resolutions': RESOLUTIONS
         })
     
+    return jsonify(get_capabilities(scanner))
+
+def get_capabilities(scanner):
     cache_key = f'capabilities:{scanner}'
     cached = cache_get(cache_key)
     if cached is not None:
-        return jsonify(cached)
+        return cached
 
     try:
         cmd = ['scanimage', '-d', scanner, '--all-options']
@@ -249,10 +253,21 @@ def api_capabilities():
             logger.info("Using default resolutions")
         
         cache_set(cache_key, capabilities)
-        return jsonify(capabilities)
+        return capabilities
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error getting capabilities for {scanner}: {e}")
+        return {'sources': SOURCES, 'modes': MODES, 'resolutions': RESOLUTIONS}
+
+def warmup_cache():
+    logger.info("Cache warmup started")
+    try:
+        devices = get_scanner_devices()
+        for device in devices:
+            get_capabilities(device['id'])
+        logger.info("Cache warmup complete")
+    except Exception as e:
+        logger.error(f"Cache warmup failed: {e}")
 
 @app.route('/api/preview', methods=['POST'])
 def api_preview():
@@ -291,6 +306,10 @@ def api_preview():
         return jsonify({'error': 'Preview scan timed out'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# In debug mode the Werkzeug reloader forks; only warm up in the child (app) process.
+if not DEBUG or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    threading.Thread(target=warmup_cache, daemon=True).start()
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)), debug=DEBUG)
