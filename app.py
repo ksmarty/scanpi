@@ -4,6 +4,13 @@ import datetime as dt
 import os
 import tempfile
 import uuid
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 DEBUG = os.environ.get("DEBUG", False)
 ROOT_PATH = os.environ.get("ROOT_PATH", '/')
@@ -116,11 +123,14 @@ def api_devices():
 @app.route('/api/capabilities', methods=['GET'])
 def api_capabilities():
     scanner = request.args.get('scanner', '')
+    logger.info(f"Getting capabilities for scanner: '{scanner}'")
     
     try:
         cmd = ['scanadf', '--help']
         if scanner:
             cmd.extend(['--device', scanner])
+        
+        logger.debug(f"Running command: {' '.join(cmd)}")
         
         result = subprocess.run(
             cmd,
@@ -129,22 +139,33 @@ def api_capabilities():
             timeout=30
         )
         
+        logger.debug(f"scanadf stdout:\n{result.stdout}")
+        logger.debug(f"scanadf stderr:\n{result.stderr}")
+        logger.debug(f"scanadf return code: {result.returncode}")
+        
         capabilities = {
             'sources': [],
             'modes': [],
             'resolutions': []
         }
         
+        if result.returncode != 0:
+            logger.warning(f"scanadf --help returned code {result.returncode}")
+        
         current_section = None
         for line in result.stdout.split('\n'):
             line = line.strip()
+            logger.debug(f"Processing line: '{line}'")
             
             if 'source' in line.lower():
                 current_section = 'sources'
+                logger.debug("Found source section")
             elif 'mode' in line.lower():
                 current_section = 'modes'
+                logger.debug("Found mode section")
             elif 'resolution' in line.lower():
                 current_section = 'resolutions'
+                logger.debug("Found resolution section")
             
             if current_section and line and not line.startswith('-') and not line.startswith('--'):
                 parts = line.split()
@@ -153,13 +174,19 @@ def api_capabilities():
                         val = part.strip().rstrip(',').strip()
                         if val and val not in capabilities[current_section]:
                             capabilities[current_section].append(val)
+                            logger.debug(f"Added {val} to {current_section}")
+        
+        logger.info(f"Parsed capabilities: {capabilities}")
         
         if not capabilities['sources']:
             capabilities['sources'] = ['ADF Front', 'ADF Back', 'ADF Duplex']
+            logger.info("Using default sources")
         if not capabilities['modes']:
             capabilities['modes'] = ['Lineart', 'Halftone', 'Gray', 'Color']
+            logger.info("Using default modes")
         if not capabilities['resolutions']:
             capabilities['resolutions'] = ['75', '100', '150', '200', '300', '400', '600']
+            logger.info("Using default resolutions")
         
         return jsonify(capabilities)
         
