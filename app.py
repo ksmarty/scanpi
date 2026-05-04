@@ -111,7 +111,7 @@ def root_path():
         if request.method == 'POST':
             name = f"{request.form['date']}-{request.form['name']}"
             mode = request.form['mode']
-            resolution = f"{int(request.form['resolution'])}dpi"
+            resolution = request.form['resolution']
             source = request.form['source']
             scanner = request.form.get('scanner', '')
             edited_image = request.form.get('edited_image', '')
