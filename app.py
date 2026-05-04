@@ -163,6 +163,8 @@ def root_path():
 
 @app.route('/api/devices')
 def api_devices():
+    if request.args.get('refresh') == '1':
+        _cache.clear()
     return jsonify(get_scanner_devices())
 
 @app.route('/api/capabilities', methods=['GET'])

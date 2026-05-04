@@ -50,9 +50,14 @@
                         <label class="label pt-0 pb-1" for="scanner">
                             <span class="label-text font-bold text-primary"><i class="bi bi-hdd mr-1"></i>Select Scanner</span>
                         </label>
-                        <select class="select select-bordered select-sm w-full text-base h-10" id="scanner" name="scanner">
-                            <option value="">Auto-detect scanner</option>
-                        </select>
+                        <div class="flex gap-2">
+                            <select class="select select-bordered select-sm flex-1 text-base h-10" id="scanner" name="scanner">
+                                <option value="">Auto-detect scanner</option>
+                            </select>
+                            <button type="button" class="btn btn-sm btn-outline h-10 w-10 p-0" id="refreshScannerBtn" title="Refresh Scanners">
+                                <i class="bi bi-arrow-repeat text-lg"></i>
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="form-control w-full">
@@ -131,14 +136,8 @@
                     
                     <div class="bg-base-200 rounded-xl p-4 mt-3 shadow-inner border border-base-300 hidden flex-none" id="editControls">
                         <div class="flex flex-wrap gap-2 mb-4">
-                            <button type="button" class="btn btn-sm btn-outline" id="panBtn" title="Pan Image">
-                                <i class="bi bi-arrows-move"></i> Pan
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline" id="cropBoxBtn" title="Draw Crop Box">
+                            <button type="button" class="btn btn-sm btn-outline" id="cropBoxBtn" title="Toggle Crop Box">
                                 <i class="bi bi-crop"></i> Crop Box
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline" id="clearCropBtn" title="Clear Crop Box">
-                                <i class="bi bi-x-square"></i> Clear Crop
                             </button>
                             <div class="join">
                                 <button type="button" class="btn btn-sm btn-outline join-item" id="rotateLeftBtn" title="Rotate Left">
@@ -169,28 +168,36 @@
                             </div>
                         </div>
                         
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                            <div class="flex items-center gap-3">
-                                <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Zoom Speed</label>
-                                <input type="range" class="range range-xs range-primary flex-1" id="zoomSpeed" min="0.05" max="0.5" step="0.05" value="0.1">
-                                <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="zoomSpeedInput" min="0.05" max="0.5" step="0.05" value="0.1">
-                            </div>
-                            <div class="flex items-center gap-3">
-                                <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Sharpen</label>
-                                <input type="range" class="range range-xs range-primary flex-1" id="sharpen" min="0" max="100" value="0">
-                                <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="sharpenInput" min="0" max="100" value="0">
-                            </div>
-                            <div class="flex items-center gap-3">
-                                <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Brightness</label>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-x-4 gap-y-3">
+                            <div class="flex items-center gap-2">
+                                <label class="w-20 text-sm font-semibold whitespace-nowrap text-base-content/80">Brightness</label>
                                 <input type="range" class="range range-xs range-primary flex-1" id="brightness" min="-100" max="100" value="0">
                                 <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="brightnessInput" min="-100" max="100" value="0">
                             </div>
-                            <div class="flex items-center gap-3">
-                                <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Contrast</label>
+                            <div class="flex items-center gap-2">
+                                <label class="w-20 text-sm font-semibold whitespace-nowrap text-base-content/80">Contrast</label>
                                 <input type="range" class="range range-xs range-primary flex-1" id="contrast" min="-100" max="100" value="0">
                                 <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="contrastInput" min="-100" max="100" value="0">
                             </div>
+                            <div class="flex items-center gap-2">
+                                <label class="w-20 text-sm font-semibold whitespace-nowrap text-base-content/80">Sharpen</label>
+                                <input type="range" class="range range-xs range-primary flex-1" id="sharpen" min="0" max="100" value="0">
+                                <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="sharpenInput" min="0" max="100" value="0">
+                            </div>
                         </div>
+
+                        <details class="collapse collapse-arrow border border-base-300 bg-base-200 mt-4 rounded-lg">
+                            <summary class="collapse-title text-sm font-semibold text-base-content/80 min-h-0 py-2 px-4">
+                                <i class="bi bi-gear mr-2"></i>Advanced Settings
+                            </summary>
+                            <div class="collapse-content px-4 pb-3">
+                                <div class="flex items-center gap-3 max-w-sm mt-2">
+                                    <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Zoom Speed</label>
+                                    <input type="range" class="range range-xs range-primary flex-1" id="zoomSpeed" min="0.05" max="0.5" step="0.05" value="0.1">
+                                    <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="zoomSpeedInput" min="0.05" max="0.5" step="0.05" value="0.1">
+                                </div>
+                            </div>
+                        </details>
                     </div>
                     
                     <div class="mt-2 text-center text-sm opacity-60 flex-none h-5" id="previewStatus"></div>
@@ -255,12 +262,17 @@
 
         function saveState() {
             if (!cropper) return;
+            
+            const cropBox = cropper.getCropBoxData();
+            const hasCrop = Object.keys(cropBox).length > 0;
+            
             const state = {
                 b: brightness, c: contrast, s: sharpen,
                 flipH: currentFlipH, flipV: currentFlipV,
-                cropBox: cropper.getCropBoxData(),
+                cropBox: hasCrop ? cropBox : null,
                 canvasData: cropper.getCanvasData(),
-                rotate: cropper.getData().rotate
+                rotate: cropper.getData().rotate,
+                isCropMode: document.getElementById('cropBoxBtn').classList.contains('btn-active')
             };
             history = history.slice(0, historyIndex + 1);
             history.push(state);
@@ -293,7 +305,22 @@
             cropper.scale(currentFlipH, currentFlipV);
             cropper.rotateTo(state.rotate);
             cropper.setCanvasData(state.canvasData);
-            cropper.setCropBoxData(state.cropBox);
+            
+            if (state.cropBox) {
+                cropper.crop();
+                cropper.setCropBoxData(state.cropBox);
+            } else {
+                cropper.clear();
+            }
+            
+            const cropBtn = document.getElementById('cropBoxBtn');
+            if (state.isCropMode) {
+                cropBtn.classList.add('btn-active');
+                cropper.setDragMode('crop');
+            } else {
+                cropBtn.classList.remove('btn-active');
+                cropper.setDragMode('move');
+            }
             
             updateUndoRedoBtns();
         }
@@ -353,7 +380,6 @@
         function initPreviewImage(img, preventHistory = false) {
             originalImageObj = img;
             
-            // Cache original pixels for fast filtering
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = img.width;
             tempCanvas.height = img.height;
@@ -364,6 +390,7 @@
                 resetEdits();
                 history = [];
                 historyIndex = -1;
+                document.getElementById('cropBoxBtn').classList.remove('btn-active');
             }
             
             previewImage.src = img.src;
@@ -372,16 +399,41 @@
             editControls.classList.remove('hidden');
             
             if (cropper) cropper.destroy();
+            
+            let anchorData = null;
+            let currentAction = null;
+            
             cropper = new Cropper(previewImage, {
                 viewMode: 1,
-                dragMode: 'move', // Fixed pan mode
+                dragMode: document.getElementById('cropBoxBtn').classList.contains('btn-active') ? 'crop' : 'move',
                 autoCrop: false,
                 toggleDragModeOnDblclick: false,
                 wheelZoomRatio: parseFloat(document.getElementById('zoomSpeed').value) || 0.1,
-                cropend: () => saveState()
+                cropstart: (e) => {
+                    currentAction = e.detail.action;
+                    if (currentAction === 'move') {
+                        anchorData = cropper.getData();
+                    }
+                },
+                cropmove: (e) => {
+                    if (currentAction === 'move' && anchorData) {
+                        cropper.setData(anchorData);
+                    }
+                },
+                cropend: (e) => {
+                    currentAction = null;
+                    anchorData = null;
+                    saveState();
+                },
+                zoom: (e) => {
+                    const data = cropper.getData();
+                    setTimeout(() => {
+                        if (cropper) cropper.setData(data);
+                    }, 0);
+                }
             });
             
-            previewStatus.textContent = 'Preview ready — Select "Crop Box" to isolate an area';
+            previewStatus.textContent = 'Preview ready — Toggle "Crop Box" to isolate an area';
             
             if (!preventHistory) {
                 setTimeout(saveState, 100);
@@ -532,6 +584,29 @@
             return imageData;
         }
         
+        document.getElementById('refreshScannerBtn').addEventListener('click', async function() {
+            const icon = this.querySelector('i');
+            icon.classList.add('animate-spin');
+            try {
+                const res = await fetch('/api/devices?refresh=1');
+                const scanners = await res.json();
+                scannerSelect.innerHTML = '<option value="">Auto-detect scanner</option>';
+                scanners.forEach(s => {
+                    const option = document.createElement('option');
+                    option.value = s.id;
+                    option.textContent = s.description ? `${s.id} - ${s.description}` : s.id;
+                    scannerSelect.appendChild(option);
+                });
+                if (scanners.length === 1) {
+                    scannerSelect.value = scanners[0].id;
+                    loadCapabilities(scanners[0].id);
+                }
+            } catch(e) {
+                console.error(e);
+            }
+            icon.classList.remove('animate-spin');
+        });
+
         document.getElementById('rotateLeftBtn').addEventListener('click', () => {
             if (cropper) { cropper.rotate(-90); saveState(); }
         });
@@ -553,11 +628,17 @@
             saveState();
         });
         
-        document.getElementById('panBtn').addEventListener('click', () => cropper && cropper.setDragMode('move'));
-        document.getElementById('cropBoxBtn').addEventListener('click', () => cropper && cropper.setDragMode('crop'));
-        
-        document.getElementById('clearCropBtn').addEventListener('click', () => {
-            if (cropper) { cropper.clear(); saveState(); }
+        document.getElementById('cropBoxBtn').addEventListener('click', function() {
+            if (!cropper) return;
+            const isActive = this.classList.toggle('btn-active');
+            if (isActive) {
+                cropper.crop();
+                cropper.setDragMode('crop');
+            } else {
+                cropper.clear();
+                cropper.setDragMode('move');
+            }
+            saveState();
         });
         
         document.getElementById('resetBtn').addEventListener('click', function() {
@@ -565,7 +646,12 @@
                 resetEdits();
                 cropper.reset();
                 cropper.scale(1, 1);
+                document.getElementById('cropBoxBtn').classList.remove('btn-active');
+                cropper.clear();
+                cropper.setDragMode('move');
                 applyFiltersSync();
+                history = [];
+                historyIndex = -1;
                 saveState();
             }
         });
