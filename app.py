@@ -126,9 +126,10 @@ def api_capabilities():
     logger.info(f"Getting capabilities for scanner: '{scanner}'")
     
     try:
-        cmd = ['scanadf', '--help']
+        cmd = ['scanimage']
         if scanner:
-            cmd.extend(['--device', scanner])
+            cmd.extend(['-d', scanner])
+        cmd.append('--help')
         
         logger.debug(f"Running command: {' '.join(cmd)}")
         
@@ -139,9 +140,9 @@ def api_capabilities():
             timeout=30
         )
         
-        logger.debug(f"scanadf stdout:\n{result.stdout}")
-        logger.debug(f"scanadf stderr:\n{result.stderr}")
-        logger.debug(f"scanadf return code: {result.returncode}")
+        logger.debug(f"scanimage stdout:\n{result.stdout}")
+        logger.debug(f"scanimage stderr:\n{result.stderr}")
+        logger.debug(f"scanimage return code: {result.returncode}")
         
         capabilities = {
             'sources': [],
@@ -150,31 +151,35 @@ def api_capabilities():
         }
         
         if result.returncode != 0:
-            logger.warning(f"scanadf --help returned code {result.returncode}")
+            logger.warning(f"scanimage --help returned code {result.returncode}")
         
         current_section = None
+        in_values = False
         for line in result.stdout.split('\n'):
             line = line.strip()
             logger.debug(f"Processing line: '{line}'")
             
-            if 'source' in line.lower():
+            lower_line = line.lower()
+            if '--source' in lower_line or 'source option' in lower_line:
                 current_section = 'sources'
+                in_values = False
                 logger.debug("Found source section")
-            elif 'mode' in line.lower():
+            elif '--mode' in lower_line or 'mode option' in lower_line:
                 current_section = 'modes'
+                in_values = False
                 logger.debug("Found mode section")
-            elif 'resolution' in line.lower():
+            elif '--resolution' in lower_line or 'resolution option' in lower_line:
                 current_section = 'resolutions'
+                in_values = False
                 logger.debug("Found resolution section")
-            
-            if current_section and line and not line.startswith('-') and not line.startswith('--'):
-                parts = line.split()
+            elif current_section and (line.startswith('[') or ',' in line or '|' in line):
+                in_values = True
+                parts = line.replace('[', '').replace(']', '').split(',')
                 for part in parts:
-                    if part not in ['Source', 'Mode', 'Resolution', ':']:
-                        val = part.strip().rstrip(',').strip()
-                        if val and val not in capabilities[current_section]:
-                            capabilities[current_section].append(val)
-                            logger.debug(f"Added {val} to {current_section}")
+                    val = part.strip().split('|')[0].strip()
+                    if val and val not in capabilities[current_section]:
+                        capabilities[current_section].append(val)
+                        logger.debug(f"Added {val} to {current_section}")
         
         logger.info(f"Parsed capabilities: {capabilities}")
         
