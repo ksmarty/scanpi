@@ -275,7 +275,9 @@ def api_preview():
         data = request.get_json() or {}
         scanner = data.get('scanner', '')
         mode = data.get('mode', 'Gray')
-        resolution = data.get('resolution', '75')
+        # Always use 75 DPI for preview — user-selected resolution can be
+        # thousands of DPI which causes timeouts on a full-bed scan.
+        PREVIEW_RESOLUTION = '75'
         
         temp_dir = tempfile.mkdtemp()
         preview_file = os.path.join(temp_dir, f"preview_{uuid.uuid4()}.png")
@@ -285,18 +287,23 @@ def api_preview():
             cmd.extend(['-d', scanner])
         cmd.extend([
             '--mode', mode,
-            '--resolution', resolution,
+            '--resolution', PREVIEW_RESOLUTION,
             '--format', 'png',
             '-o', preview_file
         ])
         
+        logger.debug(f"Running preview command: {' '.join(cmd)}")
+
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=120
         )
         
+        logger.debug(f"Preview scanimage stderr:\n{result.stderr}")
+        logger.debug(f"Preview scanimage return code: {result.returncode}")
+
         if result.returncode != 0 or not os.path.exists(preview_file):
             return jsonify({'error': 'Preview scan failed', 'details': result.stderr}), 500
         
