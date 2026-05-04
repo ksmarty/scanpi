@@ -133,6 +133,17 @@ def api_capabilities():
             'resolutions': RESOLUTIONS
         })
     
+    available = get_scanner_devices()
+    available_ids = [d['id'] for d in available]
+    
+    if scanner not in available_ids:
+        logger.warning(f"Scanner '{scanner}' not in available devices: {available_ids}")
+        return jsonify({
+            'sources': SOURCES,
+            'modes': MODES,
+            'resolutions': RESOLUTIONS
+        })
+    
     try:
         cmd = ['scanimage', '-d', scanner, '--all-options']
         
