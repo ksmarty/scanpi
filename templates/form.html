@@ -23,7 +23,14 @@
                     <div class="text-xs opacity-75">Document Scanner</div>
                 </div>
             </div>
-            <span class="badge badge-outline">v2.3</span>
+            <div class="flex items-center gap-4">
+                <label class="swap swap-rotate text-xl" title="Toggle Dark/Light Mode">
+                    <input type="checkbox" id="themeToggle" />
+                    <i class="bi bi-sun swap-on"></i>
+                    <i class="bi bi-moon-stars swap-off"></i>
+                </label>
+                <span class="badge badge-outline">v2.3</span>
+            </div>
         </div>
 
         <!-- Body -->
@@ -130,6 +137,9 @@
                             <button type="button" class="btn btn-sm btn-outline" id="cropBoxBtn" title="Draw Crop Box">
                                 <i class="bi bi-crop"></i> Crop Box
                             </button>
+                            <button type="button" class="btn btn-sm btn-outline" id="clearCropBtn" title="Clear Crop Box">
+                                <i class="bi bi-x-square"></i> Clear Crop
+                            </button>
                             <div class="join">
                                 <button type="button" class="btn btn-sm btn-outline join-item" id="rotateLeftBtn" title="Rotate Left">
                                     <i class="bi bi-arrow-counterclockwise"></i>
@@ -146,31 +156,39 @@
                                     <i class="bi bi-arrow-up-down"></i> Flip V
                                 </button>
                             </div>
-                            <button type="button" class="btn btn-sm btn-ghost ml-auto" id="resetBtn" title="Reset View">
-                                <i class="bi bi-arrow-counterclockwise"></i> Reset
-                            </button>
+                            <div class="join ml-auto">
+                                <button type="button" class="btn btn-sm btn-ghost join-item" id="undoBtn" title="Undo" disabled>
+                                    <i class="bi bi-arrow-90deg-left"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-ghost join-item" id="redoBtn" title="Redo" disabled>
+                                    <i class="bi bi-arrow-90deg-right"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-ghost join-item border-l border-base-300" id="resetBtn" title="Reset View">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Reset
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                             <div class="flex items-center gap-3">
                                 <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Zoom Speed</label>
                                 <input type="range" class="range range-xs range-primary flex-1" id="zoomSpeed" min="0.05" max="0.5" step="0.05" value="0.1">
-                                <span id="zoomSpeedVal" class="w-8 text-right text-sm font-mono opacity-80">0.1</span>
+                                <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="zoomSpeedInput" min="0.05" max="0.5" step="0.05" value="0.1">
                             </div>
                             <div class="flex items-center gap-3">
                                 <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Sharpen</label>
                                 <input type="range" class="range range-xs range-primary flex-1" id="sharpen" min="0" max="100" value="0">
-                                <span id="sharpenVal" class="w-8 text-right text-sm font-mono opacity-80">0</span>
+                                <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="sharpenInput" min="0" max="100" value="0">
                             </div>
                             <div class="flex items-center gap-3">
                                 <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Brightness</label>
                                 <input type="range" class="range range-xs range-primary flex-1" id="brightness" min="-100" max="100" value="0">
-                                <span id="brightnessVal" class="w-8 text-right text-sm font-mono opacity-80">0</span>
+                                <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="brightnessInput" min="-100" max="100" value="0">
                             </div>
                             <div class="flex items-center gap-3">
                                 <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Contrast</label>
                                 <input type="range" class="range range-xs range-primary flex-1" id="contrast" min="-100" max="100" value="0">
-                                <span id="contrastVal" class="w-8 text-right text-sm font-mono opacity-80">0</span>
+                                <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="contrastInput" min="-100" max="100" value="0">
                             </div>
                         </div>
                     </div>
@@ -193,6 +211,18 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
     <script>
+        // Theme init
+        const themeToggle = document.getElementById('themeToggle');
+        const htmlTheme = document.documentElement;
+        const savedTheme = localStorage.getItem('scanpi_theme') || 'dark';
+        htmlTheme.setAttribute('data-theme', savedTheme);
+        themeToggle.checked = savedTheme === 'light';
+        themeToggle.addEventListener('change', (e) => {
+            const t = e.target.checked ? 'light' : 'dark';
+            htmlTheme.setAttribute('data-theme', t);
+            localStorage.setItem('scanpi_theme', t);
+        });
+
         const scannerSelect = document.getElementById('scanner');
         const previewBtn = document.getElementById('previewBtn');
         const submitBtn = document.getElementById('submitBtn');
@@ -208,12 +238,68 @@
         const sourceSelect = document.getElementById('source');
         
         let originalImageObj = null;
+        let originalPixels = null;
+        const outputCanvas = document.createElement('canvas');
+        const outputCtx = outputCanvas.getContext('2d');
+
         let cropper = null;
         let currentFlipH = 1;
         let currentFlipV = 1;
         let brightness = 0;
         let contrast = 0;
         let sharpen = 0;
+        
+        // History State
+        let history = [];
+        let historyIndex = -1;
+
+        function saveState() {
+            if (!cropper) return;
+            const state = {
+                b: brightness, c: contrast, s: sharpen,
+                flipH: currentFlipH, flipV: currentFlipV,
+                cropBox: cropper.getCropBoxData(),
+                canvasData: cropper.getCanvasData(),
+                rotate: cropper.getData().rotate
+            };
+            history = history.slice(0, historyIndex + 1);
+            history.push(state);
+            historyIndex++;
+            updateUndoRedoBtns();
+        }
+
+        function updateUndoRedoBtns() {
+            document.getElementById('undoBtn').disabled = historyIndex <= 0;
+            document.getElementById('redoBtn').disabled = historyIndex >= history.length - 1;
+        }
+
+        function loadState(index) {
+            if (index < 0 || index >= history.length) return;
+            historyIndex = index;
+            const state = history[index];
+            
+            brightness = state.b; contrast = state.c; sharpen = state.s;
+            currentFlipH = state.flipH; currentFlipV = state.flipV;
+            
+            document.getElementById('brightness').value = brightness;
+            document.getElementById('brightnessInput').value = brightness;
+            document.getElementById('contrast').value = contrast;
+            document.getElementById('contrastInput').value = contrast;
+            document.getElementById('sharpen').value = sharpen;
+            document.getElementById('sharpenInput').value = sharpen;
+            
+            applyFiltersSync();
+            
+            cropper.scale(currentFlipH, currentFlipV);
+            cropper.rotateTo(state.rotate);
+            cropper.setCanvasData(state.canvasData);
+            cropper.setCropBoxData(state.cropBox);
+            
+            updateUndoRedoBtns();
+        }
+        
+        document.getElementById('undoBtn').addEventListener('click', () => loadState(historyIndex - 1));
+        document.getElementById('redoBtn').addEventListener('click', () => loadState(historyIndex + 1));
         
         async function loadDevices() {
             try {
@@ -264,6 +350,44 @@
             }
         }
         
+        function initPreviewImage(img, preventHistory = false) {
+            originalImageObj = img;
+            
+            // Cache original pixels for fast filtering
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+            tempCanvas.getContext('2d').drawImage(img, 0, 0);
+            originalPixels = tempCanvas.getContext('2d').getImageData(0, 0, img.width, img.height);
+            
+            if (!preventHistory) {
+                resetEdits();
+                history = [];
+                historyIndex = -1;
+            }
+            
+            previewImage.src = img.src;
+            previewImage.classList.remove('hidden');
+            previewPlaceholder.classList.add('hidden');
+            editControls.classList.remove('hidden');
+            
+            if (cropper) cropper.destroy();
+            cropper = new Cropper(previewImage, {
+                viewMode: 1,
+                dragMode: 'move', // Fixed pan mode
+                autoCrop: false,
+                toggleDragModeOnDblclick: false,
+                wheelZoomRatio: parseFloat(document.getElementById('zoomSpeed').value) || 0.1,
+                cropend: () => saveState()
+            });
+            
+            previewStatus.textContent = 'Preview ready — Select "Crop Box" to isolate an area';
+            
+            if (!preventHistory) {
+                setTimeout(saveState, 100);
+            }
+        }
+
         async function runPreview() {
             const scanner = scannerSelect.value;
             const mode = modeSelect.value;
@@ -287,27 +411,20 @@
                 }
                 
                 const blob = await res.blob();
-                const img = new Image();
-                img.onload = function() {
-                    originalImageObj = img;
-                    resetEdits();
-                    
-                    previewImage.src = img.src;
-                    previewImage.classList.remove('hidden');
-                    previewPlaceholder.classList.add('hidden');
-                    editControls.classList.remove('hidden');
-                    
-                    if (cropper) cropper.destroy();
-                    cropper = new Cropper(previewImage, {
-                        viewMode: 1,
-                        dragMode: 'pan',
-                        autoCrop: false,
-                        toggleDragModeOnDblclick: false,
-                        wheelZoomRatio: parseFloat(document.getElementById('zoomSpeed').value) || 0.1
-                    });
-                    
-                    previewStatus.textContent = 'Preview ready — Select "Crop Box" to isolate an area';
+                
+                // Persist preview blob base64 to localstorage
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    try {
+                        localStorage.setItem('scanpi_preview_img', reader.result);
+                    } catch (e) {
+                        console.warn('Preview too large for localStorage', e);
+                    }
                 };
+                reader.readAsDataURL(blob);
+
+                const img = new Image();
+                img.onload = () => initPreviewImage(img);
                 img.src = URL.createObjectURL(blob);
             } catch (e) {
                 previewImage.classList.add('hidden');
@@ -330,34 +447,51 @@
             contrast = 0;
             sharpen = 0;
             document.getElementById('brightness').value = 0;
+            document.getElementById('brightnessInput').value = 0;
             document.getElementById('contrast').value = 0;
+            document.getElementById('contrastInput').value = 0;
             document.getElementById('sharpen').value = 0;
-            document.getElementById('brightnessVal').textContent = '0';
-            document.getElementById('contrastVal').textContent = '0';
-            document.getElementById('sharpenVal').textContent = '0';
+            document.getElementById('sharpenInput').value = 0;
         }
         
-        function applyFilters() {
+        function applyFiltersSync() {
             if (!originalImageObj || !cropper) return;
             
-            const canvas = document.createElement('canvas');
-            canvas.width = originalImageObj.width;
-            canvas.height = originalImageObj.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(originalImageObj, 0, 0);
+            outputCanvas.width = originalImageObj.width;
+            outputCanvas.height = originalImageObj.height;
             
-            let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            if (brightness === 0 && contrast === 0 && sharpen === 0) {
+                cropper.replace(originalImageObj.src, true);
+                return;
+            }
+            
+            const imgData = new ImageData(
+                new Uint8ClampedArray(originalPixels.data),
+                originalPixels.width,
+                originalPixels.height
+            );
             
             if (brightness !== 0 || contrast !== 0) {
-                imgData = applyBrightnessContrast(imgData, brightness, contrast);
+                applyBrightnessContrast(imgData, brightness, contrast);
             }
             
             if (sharpen > 0) {
-                imgData = applySharpen(imgData, sharpen / 100);
+                applySharpen(imgData, sharpen / 100);
             }
             
-            ctx.putImageData(imgData, 0, 0);
-            cropper.replace(canvas.toDataURL('image/png'), true);
+            outputCtx.putImageData(imgData, 0, 0);
+            cropper.replace(outputCanvas.toDataURL('image/png'), true);
+        }
+
+        let filterPending = false;
+        function scheduleFilters() {
+            if (!filterPending) {
+                filterPending = true;
+                requestAnimationFrame(() => {
+                    applyFiltersSync();
+                    filterPending = false;
+                });
+            }
         }
         
         function applyBrightnessContrast(imageData, brightness, contrast) {
@@ -398,61 +532,75 @@
             return imageData;
         }
         
-        document.getElementById('rotateLeftBtn').addEventListener('click', () => cropper && cropper.rotate(-90));
-        document.getElementById('rotateRightBtn').addEventListener('click', () => cropper && cropper.rotate(90));
+        document.getElementById('rotateLeftBtn').addEventListener('click', () => {
+            if (cropper) { cropper.rotate(-90); saveState(); }
+        });
+        document.getElementById('rotateRightBtn').addEventListener('click', () => {
+            if (cropper) { cropper.rotate(90); saveState(); }
+        });
         
         document.getElementById('flipHBtn').addEventListener('click', function() {
             if (!cropper) return;
             currentFlipH *= -1;
             cropper.scaleX(currentFlipH);
+            saveState();
         });
         
         document.getElementById('flipVBtn').addEventListener('click', function() {
             if (!cropper) return;
             currentFlipV *= -1;
             cropper.scaleY(currentFlipV);
+            saveState();
         });
         
-        document.getElementById('panBtn').addEventListener('click', () => cropper && cropper.setDragMode('pan'));
+        document.getElementById('panBtn').addEventListener('click', () => cropper && cropper.setDragMode('move'));
         document.getElementById('cropBoxBtn').addEventListener('click', () => cropper && cropper.setDragMode('crop'));
+        
+        document.getElementById('clearCropBtn').addEventListener('click', () => {
+            if (cropper) { cropper.clear(); saveState(); }
+        });
         
         document.getElementById('resetBtn').addEventListener('click', function() {
             if (originalImageObj && cropper) {
                 resetEdits();
                 cropper.reset();
                 cropper.scale(1, 1);
-                applyFilters();
+                applyFiltersSync();
+                saveState();
             }
         });
+
+        function bindSlider(sliderId, inputId, type) {
+            const slider = document.getElementById(sliderId);
+            const input = document.getElementById(inputId);
+            
+            const updateVal = (val, save) => {
+                let num = type === 'z' ? parseFloat(val) : parseInt(val);
+                if (isNaN(num)) num = 0;
+                slider.value = num;
+                input.value = num;
+                
+                if (type === 'z') {
+                    if (cropper) cropper.options.wheelZoomRatio = num;
+                } else {
+                    if (type === 'b') brightness = num;
+                    if (type === 'c') contrast = num;
+                    if (type === 's') sharpen = num;
+                    scheduleFilters();
+                }
+                if (save && type !== 'z') saveState();
+            };
+            
+            slider.addEventListener('input', (e) => updateVal(e.target.value, false));
+            slider.addEventListener('change', (e) => updateVal(e.target.value, true));
+            input.addEventListener('input', (e) => updateVal(e.target.value, false));
+            input.addEventListener('change', (e) => updateVal(e.target.value, true));
+        }
         
-        document.getElementById('zoomSpeed').addEventListener('input', function() {
-            document.getElementById('zoomSpeedVal').textContent = this.value;
-            if (cropper) cropper.options.wheelZoomRatio = parseFloat(this.value);
-        });
-        
-        document.getElementById('brightness').addEventListener('input', function() {
-            document.getElementById('brightnessVal').textContent = this.value;
-        });
-        document.getElementById('brightness').addEventListener('change', function() {
-            brightness = parseInt(this.value);
-            applyFilters();
-        });
-        
-        document.getElementById('contrast').addEventListener('input', function() {
-            document.getElementById('contrastVal').textContent = this.value;
-        });
-        document.getElementById('contrast').addEventListener('change', function() {
-            contrast = parseInt(this.value);
-            applyFilters();
-        });
-        
-        document.getElementById('sharpen').addEventListener('input', function() {
-            document.getElementById('sharpenVal').textContent = this.value;
-        });
-        document.getElementById('sharpen').addEventListener('change', function() {
-            sharpen = parseInt(this.value);
-            applyFilters();
-        });
+        bindSlider('zoomSpeed', 'zoomSpeedInput', 'z');
+        bindSlider('brightness', 'brightnessInput', 'b');
+        bindSlider('contrast', 'contrastInput', 'c');
+        bindSlider('sharpen', 'sharpenInput', 's');
         
         function submitScan() {
             document.getElementById('formName').value = document.getElementById('name').value;
@@ -485,6 +633,15 @@
         
         document.getElementById('name').addEventListener('input', function(e) {
             this.value = this.value.replace(/[^a-zA-Z0-9-_]/g, '');
+        });
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedImg = localStorage.getItem('scanpi_preview_img');
+            if (savedImg) {
+                const img = new Image();
+                img.onload = () => initPreviewImage(img, true); // true prevents overwriting initial history state prematurely
+                img.src = savedImg;
+            }
         });
         
         loadDevices();
