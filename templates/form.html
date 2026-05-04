@@ -51,7 +51,7 @@
                             <span class="label-text font-bold text-primary"><i class="bi bi-hdd mr-1"></i>Select Scanner</span>
                         </label>
                         <div class="flex gap-2">
-                            <select class="select select-bordered select-sm flex-1 text-base h-10" id="scanner" name="scanner">
+                            <select class="select select-bordered select-sm flex-1 text-base h-10 min-w-0 text-ellipsis overflow-hidden whitespace-nowrap" id="scanner" name="scanner">
                                 <option value="">Auto-detect scanner</option>
                             </select>
                             <button type="button" class="btn btn-sm btn-outline h-10 w-10 p-0" id="refreshScannerBtn" title="Refresh Scanners">
@@ -106,6 +106,19 @@
                             {% endfor %}
                         </select>
                     </div>
+
+                    <details class="collapse collapse-arrow border border-base-300 bg-base-200 mt-2 mb-2 rounded-lg">
+                        <summary class="collapse-title text-sm font-semibold text-base-content/80 min-h-0 py-2 px-4">
+                            <i class="bi bi-gear mr-2"></i>Advanced Settings
+                        </summary>
+                        <div class="collapse-content px-4 pb-3">
+                            <div class="flex items-center gap-3 w-full mt-2">
+                                <label class="text-sm font-semibold whitespace-nowrap text-base-content/80 flex-none">Zoom Speed</label>
+                                <input type="range" class="range range-xs range-primary flex-1 min-w-0" id="zoomSpeed" min="0.05" max="0.5" step="0.05" value="0.1">
+                                <input type="number" class="input input-bordered input-xs w-16 text-right font-mono flex-none" id="zoomSpeedInput" min="0.05" max="0.5" step="0.05" value="0.1">
+                            </div>
+                        </div>
+                    </details>
                     
                     <div class="flex gap-2 mt-auto pt-2">
                         <button type="button" class="btn btn-secondary flex-1" id="previewBtn">
@@ -185,19 +198,6 @@
                                 <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="sharpenInput" min="0" max="100" value="0">
                             </div>
                         </div>
-
-                        <details class="collapse collapse-arrow border border-base-300 bg-base-200 mt-4 rounded-lg">
-                            <summary class="collapse-title text-sm font-semibold text-base-content/80 min-h-0 py-2 px-4">
-                                <i class="bi bi-gear mr-2"></i>Advanced Settings
-                            </summary>
-                            <div class="collapse-content px-4 pb-3">
-                                <div class="flex items-center gap-3 max-w-sm mt-2">
-                                    <label class="w-24 text-sm font-semibold whitespace-nowrap text-base-content/80">Zoom Speed</label>
-                                    <input type="range" class="range range-xs range-primary flex-1" id="zoomSpeed" min="0.05" max="0.5" step="0.05" value="0.1">
-                                    <input type="number" class="input input-bordered input-xs w-16 text-right font-mono" id="zoomSpeedInput" min="0.05" max="0.5" step="0.05" value="0.1">
-                                </div>
-                            </div>
-                        </details>
                     </div>
                     
                     <div class="mt-2 text-center text-sm opacity-60 flex-none h-5" id="previewStatus"></div>
@@ -409,6 +409,7 @@
                 autoCrop: false,
                 toggleDragModeOnDblclick: false,
                 wheelZoomRatio: parseFloat(document.getElementById('zoomSpeed').value) || 0.1,
+                zoomOnWheel: false, // We'll handle this manually for 2-finger pan support
                 cropstart: (e) => {
                     currentAction = e.detail.action;
                     if (currentAction === 'move') {
@@ -438,6 +439,21 @@
             if (!preventHistory) {
                 setTimeout(saveState, 100);
             }
+
+            // Handle trackpad 2-finger pan vs zoom
+            previewContainer.addEventListener('wheel', function(e) {
+                if (!cropper) return;
+                e.preventDefault();
+                
+                // ctrlKey is true for pinch-to-zoom on Mac trackpads
+                if (e.ctrlKey || e.metaKey) {
+                    const ratio = parseFloat(document.getElementById('zoomSpeed').value) || 0.1;
+                    cropper.zoom(e.deltaY < 0 ? ratio : -ratio, e);
+                } else {
+                    // Standard 2-finger scroll = pan
+                    cropper.move(-e.deltaX, -e.deltaY);
+                }
+            }, { passive: false });
         }
 
         async function runPreview() {

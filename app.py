@@ -130,7 +130,10 @@ def root_path():
                         f.write(img_data)
                     
                     pdf_file = os.path.join(scan_path, f"{name}.pdf")
-                    subprocess.run(['convert', img_file, pdf_file], check=True)
+                    
+                    # Use Pillow to convert PNG to PDF to bypass ImageMagick security policy
+                    img = Image.open(img_file)
+                    img.save(pdf_file, "PDF", resolution=100.0)
                     
                     subprocess.run(['ocrmypdf', '-r', '-d', '-c', '--rotate-pages-threshold', '0', pdf_file, pdf_file], check=True)
                     
