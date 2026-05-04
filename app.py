@@ -61,17 +61,46 @@ def root_path():
             resolution = f"{int(request.form['resolution'])}dpi"
             source = request.form['source']
             scanner = request.form.get('scanner', '')
+            edited_image = request.form.get('edited_image', '')
             
-            env_vars = os.environ.copy()
-            env_vars["FILENAME"] = name
-            env_vars["MODE"] = mode
-            env_vars["RESOLUTION"] = resolution
-            env_vars["SOURCE"] = source
-            if scanner:
-                env_vars["SCANNER_DEVICE"] = scanner
+            scan_dir = os.environ.get('SCAN_DIRECTORY', '/scans')
             
-            subprocess.Popen(['/bin/bash','scan_adf.sh'], env=env_vars)
-            return render_root_path(default_date, message='Scan request submitted successfully!', selected_scanner=scanner)
+            if edited_image:
+                import base64
+                try:
+                    img_data = base64.b64decode(edited_image.split(',')[1])
+                    
+                    scan_path = os.path.join(scan_dir, name)
+                    os.makedirs(scan_path, exist_ok=True)
+                    
+                    img_file = os.path.join(scan_path, f"{name}.png")
+                    with open(img_file, 'wb') as f:
+                        f.write(img_data)
+                    
+                    pdf_file = os.path.join(scan_path, f"{name}.pdf")
+                    subprocess.run(['convert', img_file, pdf_file], check=True)
+                    
+                    subprocess.run(['ocrmypdf', '-r', '-d', '-c', '--rotate-pages-threshold', '0', pdf_file, pdf_file], check=True)
+                    
+                    os.chmod(pdf_file, 0o644)
+                    os.chmod(scan_path, 0o755)
+                    
+                    return render_root_path(default_date, message='Scan saved successfully!', selected_scanner=scanner)
+                except Exception as e:
+                    if DEBUG:
+                        raise
+                    return render_root_path(default_date, f'Error saving scan: {str(e)}', selected_scanner)
+            else:
+                env_vars = os.environ.copy()
+                env_vars["FILENAME"] = name
+                env_vars["MODE"] = mode
+                env_vars["RESOLUTION"] = resolution
+                env_vars["SOURCE"] = source
+                if scanner:
+                    env_vars["SCANNER_DEVICE"] = scanner
+                
+                subprocess.Popen(['/bin/bash','scan_adf.sh'], env=env_vars)
+                return render_root_path(default_date, message='Scan request submitted successfully!', selected_scanner=scanner)
         else:
             return render_root_path(default_date, selected_scanner=selected_scanner)
     except Exception as e:

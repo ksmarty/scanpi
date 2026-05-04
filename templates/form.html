@@ -12,6 +12,7 @@
             --secondary-color: #3498db;
             --accent-color: #27ae60;
             --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --preview-height: calc(100vh - 200px);
         }
         
         body {
@@ -60,8 +61,8 @@
         .btn-scan {
             background: linear-gradient(135deg, var(--accent-color) 0%, #219a52 100%);
             border: none;
-            padding: 1rem 2rem;
-            font-size: 1.1rem;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
             font-weight: 600;
             border-radius: 8px;
             transition: all 0.3s ease;
@@ -75,6 +76,8 @@
         .btn-preview {
             background: linear-gradient(135deg, var(--secondary-color) 0%, #2980b9 100%);
             border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
         }
         
         .btn-preview:hover {
@@ -92,19 +95,20 @@
         }
         
         .preview-container {
-            background: #f8f9fa;
+            background: #1a1a1a;
             border-radius: 8px;
-            min-height: 300px;
+            min-height: var(--preview-height);
+            max-height: var(--preview-height);
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            border: 2px dashed #dee2e6;
+            position: relative;
         }
         
-        .preview-container img {
+        .preview-container canvas {
             max-width: 100%;
-            max-height: 350px;
+            max-height: 100%;
             object-fit: contain;
         }
         
@@ -116,6 +120,38 @@
         .preview-placeholder i {
             font-size: 4rem;
             opacity: 0.3;
+        }
+        
+        .edit-controls {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 0.75rem;
+        }
+        
+        .edit-btn {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.9rem;
+        }
+        
+        .edit-btn.active {
+            background: var(--secondary-color);
+            color: white;
+        }
+        
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .slider-container input[type="range"] {
+            flex: 1;
+        }
+        
+        .slider-container label {
+            min-width: 80px;
+            font-size: 0.85rem;
         }
         
         @keyframes pulse {
@@ -134,6 +170,7 @@
             border-top-color: transparent;
             border-radius: 50%;
             animation: spin 1s linear infinite;
+            display: inline-block;
         }
         
         @keyframes spin {
@@ -142,20 +179,42 @@
         
         .split-pane {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 350px 1fr;
             gap: 1.5rem;
+            align-items: start;
         }
         
-        @media (max-width: 768px) {
+        .preview-panel {
+            position: sticky;
+            top: 1rem;
+        }
+        
+        @media (max-width: 992px) {
             .split-pane {
                 grid-template-columns: 1fr;
             }
+            .preview-panel {
+                position: static;
+            }
+            :root {
+                --preview-height: 400px;
+            }
         }
         
-        .scan-settings {
-            border-left: 3px solid var(--secondary-color);
-            padding-left: 1rem;
-            margin-bottom: 1rem;
+        .crop-overlay {
+            position: absolute;
+            border: 2px dashed var(--accent-color);
+            background: rgba(39, 174, 96, 0.1);
+            cursor: move;
+            display: none;
+        }
+        
+        .crop-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: var(--accent-color);
+            border-radius: 2px;
         }
     </style>
 </head>
@@ -170,7 +229,7 @@
                         <small class="opacity-75">Document Scanner</small>
                     </div>
                 </div>
-                <span class="badge bg-light text-dark">v2.1</span>
+                <span class="badge bg-light text-dark">v2.2</span>
             </div>
             <div class="card-body p-4">
                 {% if message %}
@@ -207,46 +266,44 @@
                                    value="{{ default_date }}" readonly>
                         </div>
                         
-                        <div class="scan-settings">
-                            <div class="mb-3">
-                                <label for="mode" class="form-label">
-                                    <i class="bi bi-palette me-1"></i>Scan Mode
-                                </label>
-                                <select class="form-select" id="mode" name="mode">
-                                    {% for mode in modes %}
-                                    <option value="{{ mode }}">{{ mode }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="resolution" class="form-label">
-                                    <i class="bi bi-aspect-ratio me-1"></i>Resolution (DPI)
-                                </label>
-                                <select class="form-select" id="resolution" name="resolution">
-                                    {% for res in resolutions %}
-                                    <option value="{{ res }}" {{ 'selected' if res == '300' else '' }}>{{ res }} DPI</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            
-                            <div class="mb-4">
-                                <label for="source" class="form-label">
-                                    <i class="bi bi-upc me-1"></i>Scanner Source
-                                </label>
-                                <select class="form-select" id="source" name="source">
-                                    {% for src in sources %}
-                                    <option value="{{ src }}">{{ src }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
+                        <div class="mb-3">
+                            <label for="mode" class="form-label">
+                                <i class="bi bi-palette me-1"></i>Scan Mode
+                            </label>
+                            <select class="form-select" id="mode" name="mode">
+                                {% for mode in modes %}
+                                <option value="{{ mode }}">{{ mode }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="resolution" class="form-label">
+                                <i class="bi bi-aspect-ratio me-1"></i>Resolution (DPI)
+                            </label>
+                            <select class="form-select" id="resolution" name="resolution">
+                                {% for res in resolutions %}
+                                <option value="{{ res }}" {{ 'selected' if res == '300' else '' }}>{{ res }} DPI</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="source" class="form-label">
+                                <i class="bi bi-upc me-1"></i>Scanner Source
+                            </label>
+                            <select class="form-select" id="source" name="source">
+                                {% for src in sources %}
+                                <option value="{{ src }}">{{ src }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-preview text-white flex-fill" id="previewBtn">
                                 <i class="bi bi-eye me-2"></i>Preview
                             </button>
-                            <button type="submit" class="btn btn-scan text-white flex-fill" id="submitBtn">
+                            <button type="button" class="btn btn-scan text-white flex-fill" id="submitBtn">
                                 <i class="bi bi-scan me-2"></i>Scan
                             </button>
                         </div>
@@ -257,12 +314,54 @@
                             <i class="bi bi-image me-1"></i>Preview
                         </label>
                         <div class="preview-container" id="previewContainer">
+                            <canvas id="previewCanvas"></canvas>
                             <div class="preview-placeholder" id="previewPlaceholder">
                                 <i class="bi bi-card-image d-block mb-2"></i>
                                 <div>Click "Preview" to scan a test image</div>
                             </div>
-                            <img id="previewImage" style="display: none;" alt="Preview">
                         </div>
+                        
+                        <div class="edit-controls" id="editControls" style="display: none;">
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <button type="button" class="btn btn-outline-secondary edit-btn" id="rotateLeftBtn" title="Rotate Left">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Rotate Left
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary edit-btn" id="rotateRightBtn" title="Rotate Right">
+                                    <i class="bi bi-arrow-clockwise"></i> Rotate Right
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary edit-btn" id="flipHBtn" title="Flip Horizontal">
+                                    <i class="bi bi-arrow-left-right"></i> Flip H
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary edit-btn" id="flipVBtn" title="Flip Vertical">
+                                    <i class="bi bi-arrow-up-down"></i> Flip V
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary edit-btn" id="cropBtn" title="Crop">
+                                    <i class="bi bi Crop"></i> Crop
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary edit-btn" id="resetBtn" title="Reset">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Reset
+                                </button>
+                            </div>
+                            
+                            <div class="slider-container mb-2">
+                                <label>Brightness</label>
+                                <input type="range" class="form-range" id="brightness" min="-100" max="100" value="0">
+                                <span id="brightnessVal">0</span>
+                            </div>
+                            
+                            <div class="slider-container mb-2">
+                                <label>Contrast</label>
+                                <input type="range" class="form-range" id="contrast" min="-100" max="100" value="0">
+                                <span id="contrastVal">0</span>
+                            </div>
+                            
+                            <div class="slider-container">
+                                <label>Sharpen</label>
+                                <input type="range" class="form-range" id="sharpen" min="0" max="100" value="0">
+                                <span id="sharpenVal">0</span>
+                            </div>
+                        </div>
+                        
                         <div class="mt-2 text-muted small text-center" id="previewStatus"></div>
                     </div>
                 </div>
@@ -274,6 +373,7 @@
                     <input type="hidden" name="resolution" id="formResolution">
                     <input type="hidden" name="source" id="formSource">
                     <input type="hidden" name="scanner" id="formScanner">
+                    <input type="hidden" name="edited_image" id="editedImage">
                 </form>
             </div>
         </div>
@@ -288,13 +388,24 @@
         const scannerSelect = document.getElementById('scanner');
         const previewBtn = document.getElementById('previewBtn');
         const submitBtn = document.getElementById('submitBtn');
-        const previewImage = document.getElementById('previewImage');
+        const previewCanvas = document.getElementById('previewCanvas');
         const previewPlaceholder = document.getElementById('previewPlaceholder');
         const previewStatus = document.getElementById('previewStatus');
+        const editControls = document.getElementById('editControls');
         
         const modeSelect = document.getElementById('mode');
         const resolutionSelect = document.getElementById('resolution');
         const sourceSelect = document.getElementById('source');
+        
+        let originalImage = null;
+        let currentRotation = 0;
+        let currentFlipH = 1;
+        let currentFlipV = 1;
+        let brightness = 0;
+        let contrast = 0;
+        let sharpen = 0;
+        
+        const ctx = previewCanvas.getContext('2d');
         
         async function loadDevices() {
             try {
@@ -339,13 +450,13 @@
         
         async function runPreview() {
             const scanner = scannerSelect.value;
-            const mode = document.getElementById('mode').value;
-            const resolution = document.getElementById('resolution').value;
+            const mode = modeSelect.value;
+            const resolution = resolutionSelect.value;
             
             previewBtn.disabled = true;
             previewBtn.innerHTML = '<span class="spinner-icon me-2"></span>Scanning...';
             previewStatus.textContent = 'Scanning...';
-            previewImage.style.display = 'none';
+            previewCanvas.style.display = 'none';
             previewPlaceholder.style.display = 'none';
             
             try {
@@ -361,33 +472,218 @@
                 }
                 
                 const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                previewImage.src = url;
-                previewImage.style.display = 'block';
-                previewStatus.textContent = 'Preview complete';
+                const img = new Image();
+                img.onload = function() {
+                    originalImage = img;
+                    resetEdits();
+                    applyEdits();
+                    previewCanvas.style.display = 'block';
+                    editControls.style.display = 'block';
+                    previewStatus.textContent = 'Preview complete - Edit image or scan';
+                };
+                img.src = URL.createObjectURL(blob);
             } catch (e) {
                 previewPlaceholder.style.display = 'block';
                 previewPlaceholder.innerHTML = `<i class="bi bi-exclamation-triangle text-danger d-block mb-2"></i><div class="text-danger">${e.message}</div>`;
                 previewStatus.textContent = '';
+                editControls.style.display = 'none';
             } finally {
                 previewBtn.disabled = false;
                 previewBtn.innerHTML = '<i class="bi bi-eye me-2"></i>Preview';
             }
         }
         
+        function resetEdits() {
+            currentRotation = 0;
+            currentFlipH = 1;
+            currentFlipV = 1;
+            brightness = 0;
+            contrast = 0;
+            sharpen = 0;
+            document.getElementById('brightness').value = 0;
+            document.getElementById('contrast').value = 0;
+            document.getElementById('sharpen').value = 0;
+            document.getElementById('brightnessVal').textContent = '0';
+            document.getElementById('contrastVal').textContent = '0';
+            document.getElementById('sharpenVal').textContent = '0';
+        }
+        
+        function applyEdits() {
+            if (!originalImage) return;
+            
+            let canvas = previewCanvas;
+            let tempCanvas = document.createElement('canvas');
+            let tempCtx = tempCanvas.getContext('2d');
+            
+            const angle = currentRotation * Math.PI / 180;
+            const sin = Math.abs(Math.sin(angle));
+            const cos = Math.abs(Math.cos(angle));
+            
+            tempCanvas.width = originalImage.width;
+            tempCanvas.height = originalImage.height;
+            tempCtx.drawImage(originalImage, 0, 0);
+            
+            let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            
+            if (brightness !== 0 || contrast !== 0) {
+                imageData = applyBrightnessContrast(imageData, brightness, contrast);
+            }
+            
+            if (sharpen > 0) {
+                imageData = applySharpen(imageData, sharpen / 100);
+            }
+            
+            tempCtx.putImageData(imageData, 0, 0);
+            
+            canvas.width = tempCanvas.width * cos + tempCanvas.height * sin;
+            canvas.height = tempCanvas.width * sin + tempCanvas.height * cos;
+            
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(angle);
+            ctx.scale(currentFlipH, currentFlipV);
+            ctx.drawImage(tempCanvas, -tempCanvas.width / 2, -tempCanvas.height / 2);
+            ctx.restore();
+        }
+        
+        function applyBrightnessContrast(imageData, brightness, contrast) {
+            const data = imageData.data;
+            const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+            
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = factor * (data[i] - 128) + 128 + brightness;
+                data[i + 1] = factor * (data[i + 1] - 128) + 128 + brightness;
+                data[i + 2] = factor * (data[i + 2] - 128) + 128 + brightness;
+            }
+            
+            return imageData;
+        }
+        
+        function applySharpen(imageData, amount) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            const kernel = [
+                0, -amount, 0,
+                -amount, 1 + 4 * amount, -amount,
+                0, -amount, 0
+            ];
+            
+            const copy = new Uint8ClampedArray(data);
+            
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    for (let c = 0; c < 3; c++) {
+                        let val = 0;
+                        for (let ky = -1; ky <= 1; ky++) {
+                            for (let kx = -1; kx <= 1; kx++) {
+                                const idx = ((y + ky) * width + (x + kx)) * 4 + c;
+                                val += copy[idx] * kernel[(ky + 1) * 3 + (kx + 1)];
+                            }
+                        }
+                        data[(y * width + x) * 4 + c] = Math.max(0, Math.min(255, val));
+                    }
+                }
+            }
+            
+            return imageData;
+        }
+        
+        function rotateLeft() {
+            currentRotation -= 90;
+            applyEdits();
+        }
+        
+        function rotateRight() {
+            currentRotation += 90;
+            applyEdits();
+        }
+        
+        function flipHorizontal() {
+            currentFlipH *= -1;
+            applyEdits();
+        }
+        
+        function flipVertical() {
+            currentFlipV *= -1;
+            applyEdits();
+        }
+        
+        function crop() {
+            const container = document.getElementById('previewContainer');
+            const rect = previewCanvas.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            
+            const x = (rect.left - containerRect.left) * (previewCanvas.width / rect.width);
+            const y = (rect.top - containerRect.top) * (previewCanvas.height / rect.height);
+            const w = rect.width * (previewCanvas.width / rect.width);
+            const h = rect.height * (previewCanvas.height / rect.height);
+            
+            const cropped = ctx.getImageData(Math.max(0, x), Math.max(0, y), Math.min(w, previewCanvas.width), Math.min(h, previewCanvas.height));
+            
+            const newCanvas = document.createElement('canvas');
+            newCanvas.width = cropped.width;
+            newCanvas.height = cropped.height;
+            newCanvas.getContext('2d').putImageData(cropped, 0, 0);
+            
+            const img = new Image();
+            img.onload = function() {
+                originalImage = img;
+                resetEdits();
+                previewCanvas.width = img.width;
+                previewCanvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = newCanvas.toDataURL();
+        }
+        
         function submitScan() {
             document.getElementById('formName').value = document.getElementById('name').value;
             document.getElementById('formDate').value = document.getElementById('date').value;
-            document.getElementById('formMode').value = document.getElementById('mode').value;
-            document.getElementById('formResolution').value = document.getElementById('resolution').value;
-            document.getElementById('formSource').value = document.getElementById('source').value;
+            document.getElementById('formMode').value = modeSelect.value;
+            document.getElementById('formResolution').value = resolutionSelect.value;
+            document.getElementById('formSource').value = sourceSelect.value;
             document.getElementById('formScanner').value = scannerSelect.value;
+            
+            if (previewCanvas.style.display !== 'none') {
+                document.getElementById('editedImage').value = previewCanvas.toDataURL('image/png');
+            }
             
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-icon me-2"></span>Starting Scan...';
             
             document.getElementById('scanForm').submit();
         }
+        
+        document.getElementById('rotateLeftBtn').addEventListener('click', rotateLeft);
+        document.getElementById('rotateRightBtn').addEventListener('click', rotateRight);
+        document.getElementById('flipHBtn').addEventListener('click', flipHorizontal);
+        document.getElementById('flipVBtn').addEventListener('click', flipVertical);
+        document.getElementById('cropBtn').addEventListener('click', crop);
+        document.getElementById('resetBtn').addEventListener('click', function() {
+            if (originalImage) {
+                resetEdits();
+                applyEdits();
+            }
+        });
+        
+        document.getElementById('brightness').addEventListener('input', function() {
+            brightness = parseInt(this.value);
+            document.getElementById('brightnessVal').textContent = brightness;
+            applyEdits();
+        });
+        
+        document.getElementById('contrast').addEventListener('input', function() {
+            contrast = parseInt(this.value);
+            document.getElementById('contrastVal').textContent = contrast;
+            applyEdits();
+        });
+        
+        document.getElementById('sharpen').addEventListener('input', function() {
+            sharpen = parseInt(this.value);
+            document.getElementById('sharpenVal').textContent = sharpen;
+            applyEdits();
+        });
         
         previewBtn.addEventListener('click', runPreview);
         submitBtn.addEventListener('click', submitScan);
