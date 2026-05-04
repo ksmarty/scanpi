@@ -1,7 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, jsonify, send_file
 import subprocess
 import datetime as dt
 import os
+import tempfile
+import uuid
 
 DEBUG = os.environ.get("DEBUG", False)
 ROOT_PATH = os.environ.get("ROOT_PATH", '/')
@@ -12,69 +14,145 @@ DATE_FORMAT = os.environ.get("DATE_FORMAT", "%Y-%m-%d-%H-%M-%S")
 
 app = Flask(__name__)
 
-# Function to generate current date-time formatted as specified
 def current_datetime():
-    """
-    Generates a datetime string for the file folder and name. Format defaults
-    to %Y-%m-%d-%H-%M-%S and can be modified by setting the DATE_FORMAT
-    environment variable.
-
-    Returns:
-        str: Formatted datetime string
-    """
     now = dt.datetime.now()
     return now.strftime(DATE_FORMAT)
 
-def render_root_path(default_date, message=""):
-    """Renders the root path with an optional message
+def get_usb_devices():
+    try:
+        result = subprocess.run(
+            ['lsusb'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        devices = []
+        for line in result.stdout.strip().split('\n'):
+            if line:
+                parts = line.split()
+                if len(parts) >= 6:
+                    bus = parts[1]
+                    device = parts[3].rstrip(':')
+                    vendor_id = parts[1] if len(parts) > 1 else ''
+                    product_id = parts[3] if len(parts) > 3 else ''
+                    desc = ' '.join(parts[5:])
+                    devices.append({
+                        'id': f"{bus}:{device}",
+                        'bus': bus,
+                        'device': device,
+                        'description': desc
+                    })
+        return devices
+    except Exception as e:
+        return []
 
-    Args:
-        default_date (str): A datetime string
-        message (str, optional): A status message. Defaults to "".
+def get_scanner_devices():
+    try:
+        result = subprocess.run(
+            ['scanadf', '--list-devices'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        devices = []
+        for line in result.stdout.strip().split('\n'):
+            if line.strip() and not line.startswith('Available'):
+                parts = line.split(None, 1)
+                if len(parts) >= 1:
+                    device_id = parts[0].strip()
+                    description = parts[1].strip() if len(parts) > 1 else ''
+                    devices.append({
+                        'id': device_id,
+                        'description': description
+                    })
+        return devices
+    except Exception as e:
+        return []
 
-    Returns:
-        str: The rendered template
-    """
+def render_root_path(default_date, message="", selected_scanner=""):
     return render_template('form.html', 
         default_date=default_date, 
         resolutions=RESOLUTIONS,
         sources=SOURCES,
         modes=MODES,
-        message=message)
+        message=message,
+        selected_scanner=selected_scanner)
 
 @app.route(ROOT_PATH, methods=['GET','POST'])
 def root_path():
-    """
-    Front page renderer that also launches the scanner script. Root path
-    defaults to '/' but can be modified via the ROOT_PATH environment variable.
-
-    Returns:
-        str: The rendered root path.
-    """
     default_date = current_datetime()
+    selected_scanner = request.args.get('scanner', '')
     try:
         if request.method == 'POST':
-            # Extract form data
             name = f"{request.form['date']}-{request.form['name']}"
             mode = request.form['mode']
             resolution = f"{int(request.form['resolution'])}dpi"
             source = request.form['source']
+            scanner = request.form.get('scanner', '')
+            
             env_vars = os.environ.copy()
             env_vars["FILENAME"] = name
             env_vars["MODE"] = mode
             env_vars["RESOLUTION"] = resolution
             env_vars["SOURCE"] = source
+            if scanner:
+                env_vars["SCANNER_DEVICE"] = scanner
             
-            # Call the scan_adf.sh script with the provided arguments
             subprocess.Popen(['/bin/bash','scan_adf.sh'], env=env_vars)
-            return render_root_path(default_date, message='Scan request submitted successfully!')
+            return render_root_path(default_date, message='Scan request submitted successfully!', selected_scanner=scanner)
         else:
-            return render_root_path(default_date)
-    except Exception as _:
+            return render_root_path(default_date, selected_scanner=selected_scanner)
+    except Exception as e:
         if DEBUG:
             raise
         else:
-            return render_root_path(default_date, 'There was an error. Check the server.')
+            return render_root_path(default_date, 'There was an error. Check the server.', selected_scanner)
+
+@app.route('/api/devices')
+def api_devices():
+    return jsonify(get_scanner_devices())
+
+@app.route('/api/usb')
+def api_usb():
+    return jsonify(get_usb_devices())
+
+@app.route('/api/preview', methods=['POST'])
+def api_preview():
+    try:
+        data = request.get_json() or {}
+        scanner = data.get('scanner', '')
+        mode = data.get('mode', 'Gray')
+        resolution = data.get('resolution', '75')
+        
+        temp_dir = tempfile.mkdtemp()
+        preview_file = os.path.join(temp_dir, f"preview_{uuid.uuid4()}.png")
+        
+        cmd = ['scanimage']
+        if scanner:
+            cmd.extend(['-d', scanner])
+        cmd.extend([
+            '--mode', mode,
+            '--resolution', resolution,
+            '--format', 'png',
+            '-o', preview_file
+        ])
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        
+        if result.returncode != 0 or not os.path.exists(preview_file):
+            return jsonify({'error': 'Preview scan failed', 'details': result.stderr}), 500
+        
+        return send_file(preview_file, mimetype='image/png')
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Preview scan timed out'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", debug=DEBUG)
+    app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5123)), debug=DEBUG)

@@ -2,86 +2,424 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Scan Form</title>
-    <h1>{{ message }}</h1>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScanPi - Document Scanner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #27ae60;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
         body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            max-width: 600px;
-            margin: 0 auto;
+            min-height: 100vh;
+            background: var(--bg-gradient);
+            font-family: 'Segoe UI', system-ui, sans-serif;
         }
-
-        form {
-            background-color: #f2f2f2;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-
-        label {
-            font-weight: bold;
-            display: block;
-            margin-bottom: 8px;
-        }
-
-        input[type="text"],
-        select {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-
-        button[type="submit"] {
-            background-color: #4CAF50;
-            color: white;
-            padding: 12px 20px;
+        
+        .card {
             border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-            font-size: 16px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: rgba(255, 255, 255, 0.95);
         }
-
-        button[type="submit"]:hover {
-            background-color: #45a049;
+        
+        .card-header {
+            background: var(--primary-color);
+            color: white;
+            border-radius: 16px 16px 0 0 !important;
+            padding: 1.25rem;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-control, .form-select {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+        }
+        
+        .form-control[readonly] {
+            background-color: #f8f9fa;
+            cursor: not-allowed;
+        }
+        
+        .btn-scan {
+            background: linear-gradient(135deg, var(--accent-color) 0%, #219a52 100%);
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-scan:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(39, 174, 96, 0.4);
+        }
+        
+        .btn-preview {
+            background: linear-gradient(135deg, var(--secondary-color) 0%, #2980b9 100%);
+            border: none;
+        }
+        
+        .btn-preview:hover {
+            box-shadow: 0 10px 30px rgba(52, 152, 219, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .scanner-icon {
+            font-size: 1.5rem;
+            margin-right: 0.5rem;
+        }
+        
+        .usb-list {
+            max-height: 120px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+        }
+        
+        .usb-item {
+            padding: 0.25rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .usb-item:last-child {
+            border-bottom: none;
+        }
+        
+        .preview-container {
+            background: #f8f9fa;
+            border-radius: 8px;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 2px dashed #dee2e6;
+        }
+        
+        .preview-container img {
+            max-width: 100%;
+            max-height: 350px;
+            object-fit: contain;
+        }
+        
+        .preview-placeholder {
+            color: #6c757d;
+            text-align: center;
+        }
+        
+        .preview-placeholder i {
+            font-size: 4rem;
+            opacity: 0.3;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .scanning {
+            animation: pulse 1.5s infinite;
+        }
+        
+        .spinner-icon {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .split-pane {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .split-pane {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .device-badge {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            background: var(--secondary-color);
+            color: white;
+            border-radius: 4px;
+            margin-right: 0.5rem;
+        }
+        
+        .scan-settings {
+            border-left: 3px solid var(--secondary-color);
+            padding-left: 1rem;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
 <body>
-    <h2>Scan Form</h2>
-    <form method="POST">
-        <label for="name">Name:</label>
-        <input type="text" id="name" name="name" required>
+    <div class="container py-4">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-scanner scanner-icon"></i>
+                    <div>
+                        <h5 class="mb-0">ScanPi</h5>
+                        <small class="opacity-75">Document Scanner</small>
+                    </div>
+                </div>
+                <span class="badge bg-light text-dark">v2.1</span>
+            </div>
+            <div class="card-body p-4">
+                {% if message %}
+                <div class="alert alert-{{ 'success' if 'successfully' in message else 'danger' }} d-flex align-items-center mb-4" role="alert">
+                    <i class="bi bi-{{ 'check-circle-fill' if 'successfully' in message else 'exclamation-triangle-fill' }} me-2"></i>
+                    {{ message }}
+                </div>
+                {% endif %}
+                
+                <div class="split-pane">
+                    <div class="controls-panel">
+                        <div class="mb-4">
+                            <label class="form-label">
+                                <i class="bi bi-usb me-1"></i>USB Devices
+                            </label>
+                            <div class="usb-list border rounded p-2 bg-light" id="usbList">
+                                <div class="text-muted small">Loading USB devices...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="scanner" class="form-label">
+                                <i class="bi bi-hdd me-1"></i>Select Scanner
+                            </label>
+                            <select class="form-select" id="scanner" name="scanner">
+                                <option value="">Auto-detect scanner</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="name" class="form-label">
+                                <i class="bi bi-file-text me-1"></i>Document Name
+                            </label>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   placeholder="Enter document name" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="date" class="form-label">
+                                <i class="bi bi-calendar me-1"></i>Date
+                            </label>
+                            <input type="text" class="form-control" id="date" name="date" 
+                                   value="{{ default_date }}" readonly>
+                        </div>
+                        
+                        <div class="scan-settings">
+                            <div class="mb-3">
+                                <label for="mode" class="form-label">
+                                    <i class="bi bi-palette me-1"></i>Scan Mode
+                                </label>
+                                <select class="form-select" id="mode" name="mode">
+                                    {% for mode in modes %}
+                                    <option value="{{ mode }}">{{ mode }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="resolution" class="form-label">
+                                    <i class="bi bi-aspect-ratio me-1"></i>Resolution (DPI)
+                                </label>
+                                <select class="form-select" id="resolution" name="resolution">
+                                    {% for res in resolutions %}
+                                    <option value="{{ res }}" {{ 'selected' if res == '300' else '' }}>{{ res }} DPI</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="source" class="form-label">
+                                    <i class="bi bi-upc me-1"></i>Scanner Source
+                                </label>
+                                <select class="form-select" id="source" name="source">
+                                    {% for src in sources %}
+                                    <option value="{{ src }}">{{ src }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-preview text-white flex-fill" id="previewBtn">
+                                <i class="bi bi-eye me-2"></i>Preview
+                            </button>
+                            <button type="submit" class="btn btn-scan text-white flex-fill" id="submitBtn">
+                                <i class="bi bi-scan me-2"></i>Scan
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="preview-panel">
+                        <label class="form-label">
+                            <i class="bi bi-image me-1"></i>Preview
+                        </label>
+                        <div class="preview-container" id="previewContainer">
+                            <div class="preview-placeholder" id="previewPlaceholder">
+                                <i class="bi bi-card-image d-block mb-2"></i>
+                                <div>Click "Preview" to scan a test image</div>
+                            </div>
+                            <img id="previewImage" style="display: none;" alt="Preview">
+                        </div>
+                        <div class="mt-2 text-muted small text-center" id="previewStatus"></div>
+                    </div>
+                </div>
+                
+                <form method="POST" id="scanForm" style="display: none;">
+                    <input type="hidden" name="name" id="formName">
+                    <input type="hidden" name="date" id="formDate">
+                    <input type="hidden" name="mode" id="formMode">
+                    <input type="hidden" name="resolution" id="formResolution">
+                    <input type="hidden" name="source" id="formSource">
+                    <input type="hidden" name="scanner" id="formScanner">
+                </form>
+            </div>
+        </div>
         
-        <label for="date">Date:</label>
-        <input type="text" id="date" name="date" value="{{ default_date }}" readonly>
+        <div class="text-center mt-3">
+            <small class="text-white-50">ScanPi • Self-hosted Document Scanner</small>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const scannerSelect = document.getElementById('scanner');
+        const usbList = document.getElementById('usbList');
+        const previewBtn = document.getElementById('previewBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const previewImage = document.getElementById('previewImage');
+        const previewPlaceholder = document.getElementById('previewPlaceholder');
+        const previewStatus = document.getElementById('previewStatus');
         
-        <label for="mode">Mode:</label>
-        <select id="mode" name="mode">
-            {% for mode in modes %}
-            <option value="{{ mode }}">{{ mode }}</option>
-            {% endfor %}
-        </select>
+        async function loadDevices() {
+            try {
+                const [scannerRes, usbRes] = await Promise.all([
+                    fetch('/api/devices'),
+                    fetch('/api/usb')
+                ]);
+                
+                const scanners = await scannerRes.json();
+                const usbDevices = await usbRes.json();
+                
+                scannerSelect.innerHTML = '<option value="">Auto-detect scanner</option>';
+                scanners.forEach(s => {
+                    const option = document.createElement('option');
+                    option.value = s.id;
+                    option.textContent = s.description ? `${s.id} - ${s.description}` : s.id;
+                    if ('{{ selected_scanner }}' === s.id) option.selected = true;
+                    scannerSelect.appendChild(option);
+                });
+                
+                if (usbDevices.length === 0) {
+                    usbList.innerHTML = '<div class="text-muted small">No USB devices found</div>';
+                } else {
+                    usbList.innerHTML = usbDevices.map(d => `
+                        <div class="usb-item">
+                            <span class="device-badge">${d.bus}:${d.device}</span>
+                            ${d.description}
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                usbList.innerHTML = '<div class="text-danger small">Failed to load devices</div>';
+            }
+        }
         
-        <label for="resolution">Resolution:</label>
-        <select id="resolution" name="resolution">
-            {% for res in resolutions %}
-            <option value="{{ res }}">{{ res }}</option>
-            {% endfor %}
-        </select>
+        async function runPreview() {
+            const scanner = scannerSelect.value;
+            const mode = document.getElementById('mode').value;
+            const resolution = document.getElementById('resolution').value;
+            
+            previewBtn.disabled = true;
+            previewBtn.innerHTML = '<span class="spinner-icon me-2"></span>Scanning...';
+            previewStatus.textContent = 'Scanning...';
+            previewImage.style.display = 'none';
+            previewPlaceholder.style.display = 'none';
+            
+            try {
+                const res = await fetch('/api/preview', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ scanner, mode, resolution })
+                });
+                
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Preview failed');
+                }
+                
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                previewImage.src = url;
+                previewImage.style.display = 'block';
+                previewStatus.textContent = 'Preview complete';
+            } catch (e) {
+                previewPlaceholder.style.display = 'block';
+                previewPlaceholder.innerHTML = `<i class="bi bi-exclamation-triangle text-danger d-block mb-2"></i><div class="text-danger">${e.message}</div>`;
+                previewStatus.textContent = '';
+            } finally {
+                previewBtn.disabled = false;
+                previewBtn.innerHTML = '<i class="bi bi-eye me-2"></i>Preview';
+            }
+        }
         
-        <label for="source">Source:</label>
-        <select id="source" name="source">
-            {% for src in sources %}
-            <option value="{{ src }}">{{ src }}</option>
-            {% endfor %}
-        </select>
+        function submitScan() {
+            document.getElementById('formName').value = document.getElementById('name').value;
+            document.getElementById('formDate').value = document.getElementById('date').value;
+            document.getElementById('formMode').value = document.getElementById('mode').value;
+            document.getElementById('formResolution').value = document.getElementById('resolution').value;
+            document.getElementById('formSource').value = document.getElementById('source').value;
+            document.getElementById('formScanner').value = scannerSelect.value;
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-icon me-2"></span>Starting Scan...';
+            
+            document.getElementById('scanForm').submit();
+        }
         
-        <button type="submit">SCAN</button>
-    </form>
+        previewBtn.addEventListener('click', runPreview);
+        submitBtn.addEventListener('click', submitScan);
+        
+        document.getElementById('name').addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^a-zA-Z0-9-_]/g, '');
+        });
+        
+        loadDevices();
+    </script>
 </body>
 </html>

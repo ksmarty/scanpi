@@ -15,8 +15,14 @@ pushd $SCAN_DIRECTORY
 mkdir -p "$FILENAME"
 pushd "$FILENAME"
 
+# Build scanadf command
+SCAN_CMD="scanadf --mode $MODE --source \"$SOURCE\" --resolution $RESOLUTION"
+if [ -n "$SCANNER_DEVICE" ]; then
+    SCAN_CMD="$SCAN_CMD --device-name \"$SCANNER_DEVICE\""
+fi
+
 # Scan the document
-scanadf --mode $MODE --source "$SOURCE" --resolution $RESOLUTION 2>>stderr.log 1>>stdout.log || true
+$SCAN_CMD 2>>stderr.log 1>>stdout.log || true
 
 # Convert to pdf and apply OCR
 convert image* "$FILENAME.pdf" 2>>stderr.log 1>>stdout.log
