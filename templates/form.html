@@ -7,6 +7,7 @@
     <!-- <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}"> -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -130,46 +131,35 @@
             justify-content: center;
             overflow: hidden;
             position: relative;
-            cursor: default;
-        }
-
-        .preview-container.has-image {
-            cursor: grab;
-        }
-
-        .preview-container.has-image:active {
-            cursor: grabbing;
-        }
-
-        .preview-container canvas {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            transform-origin: center center;
-            user-select: none;
-        }
-
-        .zoom-indicator {
-            position: absolute;
-            bottom: 8px;
-            right: 8px;
-            background: rgba(0,0,0,0.55);
-            color: #fff;
-            font-size: 0.75rem;
-            padding: 2px 8px;
-            border-radius: 4px;
-            pointer-events: none;
-            display: none;
         }
         
         .preview-placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             color: #6c757d;
             text-align: center;
+            pointer-events: none;
+            width: 100%;
         }
         
         .preview-placeholder i {
             font-size: 4rem;
             opacity: 0.3;
+        }
+
+        .scan-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            color: white;
+            display: none;
         }
         
         .edit-controls {
@@ -369,16 +359,25 @@
                             <i class="bi bi-image me-1"></i>Preview
                         </label>
                         <div class="preview-container" id="previewContainer">
-                            <canvas id="previewCanvas"></canvas>
+                            <img id="previewImage" style="display: none; max-width: 100%;">
                             <div class="preview-placeholder" id="previewPlaceholder">
                                 <i class="bi bi-card-image d-block mb-2"></i>
                                 <div>Click "Preview" to scan a test image</div>
                             </div>
-                            <div class="zoom-indicator" id="zoomIndicator">100%</div>
+                            <div class="scan-overlay" id="scanOverlay">
+                                <div class="spinner-border text-light mb-2" style="width: 3rem; height: 3rem;" role="status"></div>
+                                <div id="scanOverlayText">Scanning...</div>
+                            </div>
                         </div>
                         
                         <div class="edit-controls" id="editControls" style="display: none;">
                             <div class="d-flex flex-wrap gap-2 mb-3">
+                                <button type="button" class="btn btn-outline-secondary edit-btn" id="panBtn" title="Pan Image">
+                                    <i class="bi bi-arrows-move"></i> Pan
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary edit-btn" id="cropBoxBtn" title="Draw Crop Box">
+                                    <i class="bi bi-crop"></i> Crop Box
+                                </button>
                                 <button type="button" class="btn btn-outline-secondary edit-btn" id="rotateLeftBtn" title="Rotate Left">
                                     <i class="bi bi-arrow-counterclockwise"></i> Rotate Left
                                 </button>
@@ -391,30 +390,42 @@
                                 <button type="button" class="btn btn-outline-secondary edit-btn" id="flipVBtn" title="Flip Vertical">
                                     <i class="bi bi-arrow-up-down"></i> Flip V
                                 </button>
-                                <button type="button" class="btn btn-outline-secondary edit-btn" id="cropBtn" title="Crop">
-                                    <i class="bi bi Crop"></i> Crop
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary edit-btn" id="resetBtn" title="Reset">
+                                <button type="button" class="btn btn-outline-secondary edit-btn" id="resetBtn" title="Reset View">
                                     <i class="bi bi-arrow-counterclockwise"></i> Reset
                                 </button>
                             </div>
                             
-                            <div class="slider-container mb-2">
-                                <label>Brightness</label>
-                                <input type="range" class="form-range" id="brightness" min="-100" max="100" value="0">
-                                <span id="brightnessVal">0</span>
+                            <div class="row g-2 mb-2">
+                                <div class="col-sm-6">
+                                    <div class="slider-container">
+                                        <label style="min-width: 90px;">Zoom Speed</label>
+                                        <input type="range" class="form-range" id="zoomSpeed" min="0.05" max="0.5" step="0.05" value="0.1">
+                                        <span id="zoomSpeedVal" style="min-width: 30px; text-align: right;">0.1</span>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="slider-container">
+                                        <label style="min-width: 90px;">Sharpen</label>
+                                        <input type="range" class="form-range" id="sharpen" min="0" max="100" value="0">
+                                        <span id="sharpenVal" style="min-width: 30px; text-align: right;">0</span>
+                                    </div>
+                                </div>
                             </div>
-                            
-                            <div class="slider-container mb-2">
-                                <label>Contrast</label>
-                                <input type="range" class="form-range" id="contrast" min="-100" max="100" value="0">
-                                <span id="contrastVal">0</span>
-                            </div>
-                            
-                            <div class="slider-container">
-                                <label>Sharpen</label>
-                                <input type="range" class="form-range" id="sharpen" min="0" max="100" value="0">
-                                <span id="sharpenVal">0</span>
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <div class="slider-container">
+                                        <label style="min-width: 90px;">Brightness</label>
+                                        <input type="range" class="form-range" id="brightness" min="-100" max="100" value="0">
+                                        <span id="brightnessVal" style="min-width: 30px; text-align: right;">0</span>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="slider-container">
+                                        <label style="min-width: 90px;">Contrast</label>
+                                        <input type="range" class="form-range" id="contrast" min="-100" max="100" value="0">
+                                        <span id="contrastVal" style="min-width: 30px; text-align: right;">0</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
@@ -436,28 +447,29 @@
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
     <script>
         const scannerSelect = document.getElementById('scanner');
         const previewBtn = document.getElementById('previewBtn');
         const submitBtn = document.getElementById('submitBtn');
-        const previewCanvas = document.getElementById('previewCanvas');
+        const previewImage = document.getElementById('previewImage');
         const previewPlaceholder = document.getElementById('previewPlaceholder');
         const previewStatus = document.getElementById('previewStatus');
         const editControls = document.getElementById('editControls');
+        const scanOverlay = document.getElementById('scanOverlay');
+        const scanOverlayText = document.getElementById('scanOverlayText');
         
         const modeSelect = document.getElementById('mode');
         const resolutionSelect = document.getElementById('resolution');
         const sourceSelect = document.getElementById('source');
         
-        let originalImage = null;
-        let currentRotation = 0;
+        let originalImageObj = null;
+        let cropper = null;
         let currentFlipH = 1;
         let currentFlipV = 1;
         let brightness = 0;
         let contrast = 0;
         let sharpen = 0;
-        
-        const ctx = previewCanvas.getContext('2d');
         
         async function loadDevices() {
             try {
@@ -515,10 +527,9 @@
             const resolution = resolutionSelect.value;
             
             previewBtn.disabled = true;
-            previewBtn.innerHTML = '<span class="spinner-icon me-2"></span>Scanning...';
+            scanOverlay.style.display = 'flex';
+            scanOverlayText.textContent = 'Generating preview...';
             previewStatus.textContent = 'Scanning...';
-            previewCanvas.style.display = 'none';
-            previewPlaceholder.style.display = 'none';
             
             try {
                 const res = await fetch('/api/preview', {
@@ -535,31 +546,41 @@
                 const blob = await res.blob();
                 const img = new Image();
                 img.onload = function() {
-                    originalImage = img;
+                    originalImageObj = img;
                     resetEdits();
-                    resetViewport();
-                    applyEdits();
-                    previewCanvas.style.display = 'block';
+                    
+                    previewImage.src = img.src;
+                    previewImage.style.display = 'block';
+                    previewPlaceholder.style.display = 'none';
                     editControls.style.display = 'block';
-                    setPreviewHasImage(true);
-                    previewStatus.textContent = 'Preview ready — scroll to zoom, drag to pan, double-click to reset';
+                    
+                    if (cropper) cropper.destroy();
+                    cropper = new Cropper(previewImage, {
+                        viewMode: 1,
+                        dragMode: 'pan',
+                        autoCrop: false,
+                        toggleDragModeOnDblclick: false,
+                        wheelZoomRatio: parseFloat(document.getElementById('zoomSpeed').value) || 0.1
+                    });
+                    
+                    previewStatus.textContent = 'Preview ready — Select "Crop Box" to isolate an area';
                 };
                 img.src = URL.createObjectURL(blob);
             } catch (e) {
+                previewImage.style.display = 'none';
+                if (cropper) cropper.destroy();
+                cropper = null;
                 previewPlaceholder.style.display = 'block';
                 previewPlaceholder.innerHTML = `<i class="bi bi-exclamation-triangle text-danger d-block mb-2"></i><div class="text-danger">${e.message}</div>`;
                 previewStatus.textContent = '';
                 editControls.style.display = 'none';
-                setPreviewHasImage(false);
-                resetViewport();
             } finally {
                 previewBtn.disabled = false;
-                previewBtn.innerHTML = '<i class="bi bi-eye me-2"></i>Preview';
+                scanOverlay.style.display = 'none';
             }
         }
         
         function resetEdits() {
-            currentRotation = 0;
             currentFlipH = 1;
             currentFlipV = 1;
             brightness = 0;
@@ -573,42 +594,28 @@
             document.getElementById('sharpenVal').textContent = '0';
         }
         
-        function applyEdits() {
-            if (!originalImage) return;
+        function applyFilters() {
+            if (!originalImageObj || !cropper) return;
             
-            let canvas = previewCanvas;
-            let tempCanvas = document.createElement('canvas');
-            let tempCtx = tempCanvas.getContext('2d');
+            const canvas = document.createElement('canvas');
+            canvas.width = originalImageObj.width;
+            canvas.height = originalImageObj.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(originalImageObj, 0, 0);
             
-            const angle = currentRotation * Math.PI / 180;
-            const sin = Math.abs(Math.sin(angle));
-            const cos = Math.abs(Math.cos(angle));
-            
-            tempCanvas.width = originalImage.width;
-            tempCanvas.height = originalImage.height;
-            tempCtx.drawImage(originalImage, 0, 0);
-            
-            let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            let imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             
             if (brightness !== 0 || contrast !== 0) {
-                imageData = applyBrightnessContrast(imageData, brightness, contrast);
+                imgData = applyBrightnessContrast(imgData, brightness, contrast);
             }
             
             if (sharpen > 0) {
-                imageData = applySharpen(imageData, sharpen / 100);
+                imgData = applySharpen(imgData, sharpen / 100);
             }
             
-            tempCtx.putImageData(imageData, 0, 0);
-            
-            canvas.width = tempCanvas.width * cos + tempCanvas.height * sin;
-            canvas.height = tempCanvas.width * sin + tempCanvas.height * cos;
-            
-            ctx.save();
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.rotate(angle);
-            ctx.scale(currentFlipH, currentFlipV);
-            ctx.drawImage(tempCanvas, -tempCanvas.width / 2, -tempCanvas.height / 2);
-            ctx.restore();
+            ctx.putImageData(imgData, 0, 0);
+            // Replace the cropper source image without resetting zoom/cropbox (true flag)
+            cropper.replace(canvas.toDataURL('image/png'), true);
         }
         
         function applyBrightnessContrast(imageData, brightness, contrast) {
@@ -654,53 +661,63 @@
             return imageData;
         }
         
-        function rotateLeft() {
-            currentRotation -= 90;
-            applyEdits();
-        }
+        document.getElementById('rotateLeftBtn').addEventListener('click', () => cropper && cropper.rotate(-90));
+        document.getElementById('rotateRightBtn').addEventListener('click', () => cropper && cropper.rotate(90));
         
-        function rotateRight() {
-            currentRotation += 90;
-            applyEdits();
-        }
-        
-        function flipHorizontal() {
+        document.getElementById('flipHBtn').addEventListener('click', function() {
+            if (!cropper) return;
             currentFlipH *= -1;
-            applyEdits();
-        }
+            cropper.scaleX(currentFlipH);
+        });
         
-        function flipVertical() {
+        document.getElementById('flipVBtn').addEventListener('click', function() {
+            if (!cropper) return;
             currentFlipV *= -1;
-            applyEdits();
-        }
+            cropper.scaleY(currentFlipV);
+        });
         
-        function crop() {
-            const container = document.getElementById('previewContainer');
-            const rect = previewCanvas.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
-            
-            const x = (rect.left - containerRect.left) * (previewCanvas.width / rect.width);
-            const y = (rect.top - containerRect.top) * (previewCanvas.height / rect.height);
-            const w = rect.width * (previewCanvas.width / rect.width);
-            const h = rect.height * (previewCanvas.height / rect.height);
-            
-            const cropped = ctx.getImageData(Math.max(0, x), Math.max(0, y), Math.min(w, previewCanvas.width), Math.min(h, previewCanvas.height));
-            
-            const newCanvas = document.createElement('canvas');
-            newCanvas.width = cropped.width;
-            newCanvas.height = cropped.height;
-            newCanvas.getContext('2d').putImageData(cropped, 0, 0);
-            
-            const img = new Image();
-            img.onload = function() {
-                originalImage = img;
+        document.getElementById('panBtn').addEventListener('click', () => cropper && cropper.setDragMode('pan'));
+        document.getElementById('cropBoxBtn').addEventListener('click', () => cropper && cropper.setDragMode('crop'));
+        
+        document.getElementById('resetBtn').addEventListener('click', function() {
+            if (originalImageObj && cropper) {
                 resetEdits();
-                previewCanvas.width = img.width;
-                previewCanvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
-            };
-            img.src = newCanvas.toDataURL();
-        }
+                cropper.reset();
+                cropper.scale(1, 1);
+                applyFilters();
+            }
+        });
+        
+        document.getElementById('zoomSpeed').addEventListener('input', function() {
+            document.getElementById('zoomSpeedVal').textContent = this.value;
+            if (cropper) {
+                cropper.options.wheelZoomRatio = parseFloat(this.value);
+            }
+        });
+        
+        document.getElementById('brightness').addEventListener('input', function() {
+            document.getElementById('brightnessVal').textContent = this.value;
+        });
+        document.getElementById('brightness').addEventListener('change', function() {
+            brightness = parseInt(this.value);
+            applyFilters();
+        });
+        
+        document.getElementById('contrast').addEventListener('input', function() {
+            document.getElementById('contrastVal').textContent = this.value;
+        });
+        document.getElementById('contrast').addEventListener('change', function() {
+            contrast = parseInt(this.value);
+            applyFilters();
+        });
+        
+        document.getElementById('sharpen').addEventListener('input', function() {
+            document.getElementById('sharpenVal').textContent = this.value;
+        });
+        document.getElementById('sharpen').addEventListener('change', function() {
+            sharpen = parseInt(this.value);
+            applyFilters();
+        });
         
         function submitScan() {
             document.getElementById('formName').value = document.getElementById('name').value;
@@ -710,45 +727,21 @@
             document.getElementById('formSource').value = sourceSelect.value;
             document.getElementById('formScanner').value = scannerSelect.value;
             
-            if (previewCanvas.style.display !== 'none') {
-                document.getElementById('editedImage').value = previewCanvas.toDataURL('image/png');
+            if (cropper) {
+                // If a crop box exists, getCroppedCanvas() yields that area.
+                // If no box, it yields the whole canvas (with rotation/flip applied).
+                const finalCanvas = cropper.getCroppedCanvas();
+                if (finalCanvas) {
+                    document.getElementById('editedImage').value = finalCanvas.toDataURL('image/png');
+                }
             }
             
             submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-icon me-2"></span>Starting Scan...';
+            scanOverlay.style.display = 'flex';
+            scanOverlayText.textContent = 'Scanning Document...';
             
             document.getElementById('scanForm').submit();
         }
-        
-        document.getElementById('rotateLeftBtn').addEventListener('click', rotateLeft);
-        document.getElementById('rotateRightBtn').addEventListener('click', rotateRight);
-        document.getElementById('flipHBtn').addEventListener('click', flipHorizontal);
-        document.getElementById('flipVBtn').addEventListener('click', flipVertical);
-        document.getElementById('cropBtn').addEventListener('click', crop);
-        document.getElementById('resetBtn').addEventListener('click', function() {
-            if (originalImage) {
-                resetEdits();
-                applyEdits();
-            }
-        });
-        
-        document.getElementById('brightness').addEventListener('input', function() {
-            brightness = parseInt(this.value);
-            document.getElementById('brightnessVal').textContent = brightness;
-            applyEdits();
-        });
-        
-        document.getElementById('contrast').addEventListener('input', function() {
-            contrast = parseInt(this.value);
-            document.getElementById('contrastVal').textContent = contrast;
-            applyEdits();
-        });
-        
-        document.getElementById('sharpen').addEventListener('input', function() {
-            sharpen = parseInt(this.value);
-            document.getElementById('sharpenVal').textContent = sharpen;
-            applyEdits();
-        });
         
         previewBtn.addEventListener('click', runPreview);
         submitBtn.addEventListener('click', submitScan);

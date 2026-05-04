@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, Response, stream_with_context
 import subprocess
 import datetime as dt
 import os
@@ -8,6 +8,10 @@ import logging
 import re
 import time
 import threading
+import io
+import json
+import base64
+from PIL import Image
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -115,7 +119,6 @@ def root_path():
             scan_dir = os.environ.get('SCAN_DIRECTORY', '/scans')
             
             if edited_image:
-                import base64
                 try:
                     img_data = base64.b64decode(edited_image.split(',')[1])
                     
@@ -275,14 +278,14 @@ def api_preview():
         data = request.get_json() or {}
         scanner = data.get('scanner', '')
         mode = data.get('mode', 'Gray')
-        # Use the lowest available resolution (closest to 50 DPI) for fast previews.
+        # Use the lowest available resolution (closest to 75 DPI) for fast previews.
         # Pull from cached capabilities so we don't hit the scanner again.
         caps = get_capabilities(scanner) if scanner else {}
         available_res = [int(r) for r in caps.get('resolutions', []) if r.isdigit()]
         if available_res:
-            PREVIEW_RESOLUTION = str(min(available_res, key=lambda r: abs(r - 50)))
+            PREVIEW_RESOLUTION = str(min(available_res, key=lambda r: abs(r - 75)))
         else:
-            PREVIEW_RESOLUTION = '50'
+            PREVIEW_RESOLUTION = '75'
         
         temp_dir = tempfile.mkdtemp()
         preview_file = os.path.join(temp_dir, f"preview_{uuid.uuid4()}.png")
@@ -322,6 +325,110 @@ def api_preview():
 # In debug mode the Werkzeug reloader forks; only warm up in the child (app) process.
 if not DEBUG or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
     threading.Thread(target=warmup_cache, daemon=True).start()
+
+@app.route('/api/preview/stream')
+def api_preview_stream():
+    """SSE endpoint that streams progressive scan frames as JPEG while the scanner moves."""
+    scanner = request.args.get('scanner', '')
+    mode    = request.args.get('mode', 'Gray')
+
+    caps = get_capabilities(scanner) if scanner else {}
+    available_res = [int(r) for r in caps.get('resolutions', []) if r.isdigit()]
+    preview_res = str(min(available_res, key=lambda r: abs(r - 75))) if available_res else '75'
+
+    cmd = ['scanimage']
+    if scanner:
+        cmd.extend(['-d', scanner])
+    cmd.extend(['--mode', mode, '--resolution', preview_res, '--format', 'pnm'])
+    logger.debug(f"Running streaming preview: {' '.join(cmd)}")
+
+    def generate():
+        proc = None
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            # ── Parse PNM header ──────────────────────────────────────────
+            lines, buf = [], b''
+            while len(lines) < 3:
+                byte = proc.stdout.read(1)
+                if not byte:
+                    break
+                if byte == b'\n':
+                    line = buf.decode('ascii', errors='ignore').strip()
+                    buf = b''
+                    if line and not line.startswith('#'):
+                        lines.append(line)
+                else:
+                    buf += byte
+
+            if len(lines) < 3:
+                yield f'data: {json.dumps({"type": "error", "message": "Failed to read scanner output"})}\n\n'
+                return
+
+            magic = lines[0]          # P6 = colour, P5 = grey
+            width, height = map(int, lines[1].split())
+            channels = 3 if magic == 'P6' else 1
+            pil_mode  = 'RGB' if channels == 3 else 'L'
+            bytes_per_row = width * channels
+
+            yield f'data: {json.dumps({"type": "meta", "width": width, "height": height})}\n\n'
+
+            # ── Stream rows ───────────────────────────────────────────────
+            UPDATES = 20          # approximate number of partial-image events to send
+            UPDATE_EVERY = max(1, height // UPDATES)
+            all_pixels = bytearray()
+            rows_read  = 0
+            last_sent  = 0
+
+            while rows_read < height:
+                want  = bytes_per_row * min(UPDATE_EVERY, height - rows_read)
+                chunk = proc.stdout.read(want)
+                if not chunk:
+                    break
+                all_pixels.extend(chunk)
+                rows_read = len(all_pixels) // bytes_per_row
+
+                if rows_read >= last_sent + UPDATE_EVERY or rows_read >= height:
+                    partial = bytes(all_pixels[:rows_read * bytes_per_row])
+                    img = Image.frombytes(pil_mode, (width, rows_read), partial)
+                    buf = io.BytesIO()
+                    img.save(buf, 'JPEG', quality=85)
+                    b64 = base64.b64encode(buf.getvalue()).decode()
+                    progress = int(rows_read / height * 100)
+                    yield f'data: {json.dumps({"type": "frame", "image": f"data:image/jpeg;base64,{b64}", "progress": progress, "scannedHeight": rows_read, "totalHeight": height})}\n\n'
+                    last_sent = rows_read
+
+            proc.wait()
+
+            # ── Final PNG ─────────────────────────────────────────────────
+            if len(all_pixels) >= height * bytes_per_row:
+                full = bytes(all_pixels[:height * bytes_per_row])
+                img  = Image.frombytes(pil_mode, (width, height), full)
+                buf  = io.BytesIO()
+                img.save(buf, 'PNG')
+                b64  = base64.b64encode(buf.getvalue()).decode()
+                yield f'data: {json.dumps({"type": "done", "image": f"data:image/png;base64,{b64}"})}\n\n'
+            else:
+                yield f'data: {json.dumps({"type": "error", "message": "Incomplete scan data received"})}\n\n'
+
+        except GeneratorExit:
+            logger.info("SSE client disconnected during preview")
+        except Exception as e:
+            logger.error(f"Streaming preview error: {e}")
+            try:
+                yield f'data: {json.dumps({"type": "error", "message": str(e)})}\n\n'
+            except GeneratorExit:
+                pass
+        finally:
+            if proc and proc.poll() is None:
+                proc.kill()
+                logger.info("Killed scan process after SSE disconnect/error")
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
+    )
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)), debug=DEBUG)
