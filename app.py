@@ -5,6 +5,7 @@ import os
 import tempfile
 import uuid
 import logging
+import re
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -33,19 +34,38 @@ def get_scanner_devices():
             text=True,
             timeout=30
         )
+        logger.debug(f"scanadf --list-devices stdout:\n{result.stdout}")
+        logger.debug(f"scanadf --list-devices stderr:\n{result.stderr}")
+        
         devices = []
         for line in result.stdout.strip().split('\n'):
-            if line.strip() and not line.startswith('Available'):
+            line = line.strip()
+            if not line or line.lower().startswith('available'):
+                continue
+                
+            match = re.search(r"[`']([^`']+)[`']", line)
+            if match:
+                device_id = match.group(1)
+                description = line.replace(match.group(0), '').strip()
+                description = re.sub(r'^\s*is\s+a\s*', '', description).strip()
+                devices.append({
+                    'id': device_id,
+                    'description': description
+                })
+            else:
                 parts = line.split(None, 1)
-                if len(parts) >= 1:
+                if len(parts) >= 1 and ':' in parts[0]:
                     device_id = parts[0].strip()
                     description = parts[1].strip() if len(parts) > 1 else ''
                     devices.append({
                         'id': device_id,
                         'description': description
                     })
+        
+        logger.info(f"Found scanner devices: {devices}")
         return devices
     except Exception as e:
+        logger.error(f"Error listing devices: {e}")
         return []
 
 def render_root_path(default_date, message="", selected_scanner=""):
@@ -180,7 +200,6 @@ def api_capabilities():
                 for j in range(i+1, min(i+10, len(lines))):
                     val_line = lines[j].strip()
                     if val_line.startswith('['):
-                        import re
                         matches = re.findall(r'\[([^\]]+)\]', val_line)
                         for match in matches:
                             for v in match.split(','):
@@ -196,7 +215,6 @@ def api_capabilities():
                 for j in range(i+1, min(i+10, len(lines))):
                     val_line = lines[j].strip()
                     if val_line.startswith('['):
-                        import re
                         matches = re.findall(r'\[([^\]]+)\]', val_line)
                         for match in matches:
                             for v in match.split(','):
@@ -212,7 +230,6 @@ def api_capabilities():
                 for j in range(i+1, min(i+10, len(lines))):
                     val_line = lines[j].strip()
                     if val_line.startswith('['):
-                        import re
                         matches = re.findall(r'\[([^\]]+)\]', val_line)
                         for match in matches:
                             for v in match.split(','):
