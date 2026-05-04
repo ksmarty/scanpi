@@ -125,11 +125,16 @@ def api_capabilities():
     scanner = request.args.get('scanner', '')
     logger.info(f"Getting capabilities for scanner: '{scanner}'")
     
+    if not scanner or scanner == 'device':
+        logger.warning(f"Invalid scanner value: '{scanner}'")
+        return jsonify({
+            'sources': SOURCES,
+            'modes': MODES,
+            'resolutions': RESOLUTIONS
+        })
+    
     try:
-        cmd = ['scanimage']
-        if scanner:
-            cmd.extend(['-d', scanner])
-        cmd.append('--help')
+        cmd = ['scanimage', '-d', scanner, '--all-options']
         
         logger.debug(f"Running command: {' '.join(cmd)}")
         
@@ -140,7 +145,7 @@ def api_capabilities():
             timeout=30
         )
         
-        logger.debug(f"scanimage stdout:\n{result.stdout}")
+        logger.debug(f"scanimage stdout:\n{result.stdout[:2000]}...")
         logger.debug(f"scanimage stderr:\n{result.stderr}")
         logger.debug(f"scanimage return code: {result.returncode}")
         
@@ -151,35 +156,59 @@ def api_capabilities():
         }
         
         if result.returncode != 0:
-            logger.warning(f"scanimage --help returned code {result.returncode}")
+            logger.warning(f"scanimage --all-options returned code {result.returncode}, using defaults")
         
-        current_section = None
-        in_values = False
-        for line in result.stdout.split('\n'):
+        lines = result.stdout.split('\n')
+        
+        for i, line in enumerate(lines):
             line = line.strip()
-            logger.debug(f"Processing line: '{line}'")
-            
             lower_line = line.lower()
-            if '--source' in lower_line or 'source option' in lower_line:
+            
+            if '--source' in lower_line:
                 current_section = 'sources'
-                in_values = False
-                logger.debug("Found source section")
-            elif '--mode' in lower_line or 'mode option' in lower_line:
+                for j in range(i+1, min(i+10, len(lines))):
+                    val_line = lines[j].strip()
+                    if val_line.startswith('['):
+                        import re
+                        matches = re.findall(r'\[([^\]]+)\]', val_line)
+                        for match in matches:
+                            for v in match.split(','):
+                                v = v.strip()
+                                if v and v not in capabilities['sources']:
+                                    capabilities['sources'].append(v)
+                        break
+                    elif '--mode' in val_line.lower() or '--resolution' in val_line.lower():
+                        break
+            
+            elif '--mode' in lower_line:
                 current_section = 'modes'
-                in_values = False
-                logger.debug("Found mode section")
-            elif '--resolution' in lower_line or 'resolution option' in lower_line:
+                for j in range(i+1, min(i+10, len(lines))):
+                    val_line = lines[j].strip()
+                    if val_line.startswith('['):
+                        import re
+                        matches = re.findall(r'\[([^\]]+)\]', val_line)
+                        for match in matches:
+                            for v in match.split(','):
+                                v = v.strip()
+                                if v and v not in capabilities['modes']:
+                                    capabilities['modes'].append(v)
+                        break
+                    elif '--resolution' in val_line.lower():
+                        break
+            
+            elif '--resolution' in lower_line:
                 current_section = 'resolutions'
-                in_values = False
-                logger.debug("Found resolution section")
-            elif current_section and (line.startswith('[') or ',' in line or '|' in line):
-                in_values = True
-                parts = line.replace('[', '').replace(']', '').split(',')
-                for part in parts:
-                    val = part.strip().split('|')[0].strip()
-                    if val and val not in capabilities[current_section]:
-                        capabilities[current_section].append(val)
-                        logger.debug(f"Added {val} to {current_section}")
+                for j in range(i+1, min(i+10, len(lines))):
+                    val_line = lines[j].strip()
+                    if val_line.startswith('['):
+                        import re
+                        matches = re.findall(r'\[([^\]]+)\]', val_line)
+                        for match in matches:
+                            for v in match.split(','):
+                                v = v.strip()
+                                if v and v.isdigit() and v not in capabilities['resolutions']:
+                                    capabilities['resolutions'].append(v)
+                        break
         
         logger.info(f"Parsed capabilities: {capabilities}")
         
