@@ -46,7 +46,9 @@ def get_scanner_devices():
             match = re.search(r"[`']([^`']+)[`']", line)
             if match:
                 device_id = match.group(1)
-                description = line.replace(match.group(0), '').strip()
+                # Remove the quoted ID and leading "device is a" boilerplate
+                description = re.sub(r"^device\s+", '', line).strip()
+                description = description.replace(match.group(0), '').strip()
                 description = re.sub(r'^\s*is\s+a\s*', '', description).strip()
                 devices.append({
                     'id': device_id,
@@ -191,52 +193,35 @@ def api_capabilities():
         
         lines = result.stdout.split('\n')
         
-        for i, line in enumerate(lines):
+        for line in lines:
             line = line.strip()
-            lower_line = line.lower()
             
-            if '--source' in lower_line:
-                current_section = 'sources'
-                for j in range(i+1, min(i+10, len(lines))):
-                    val_line = lines[j].strip()
-                    if val_line.startswith('['):
-                        matches = re.findall(r'\[([^\]]+)\]', val_line)
-                        for match in matches:
-                            for v in match.split(','):
-                                v = v.strip()
-                                if v and v not in capabilities['sources']:
-                                    capabilities['sources'].append(v)
-                        break
-                    elif '--mode' in val_line.lower() or '--resolution' in val_line.lower():
-                        break
+            # Format: --source Flatbed|Slide|Negative [Flatbed]
+            m = re.match(r'--source\s+([^\[]+)', line)
+            if m:
+                for v in m.group(1).strip().split('|'):
+                    v = v.strip()
+                    if v and v not in capabilities['sources']:
+                        capabilities['sources'].append(v)
+                continue
             
-            elif '--mode' in lower_line:
-                current_section = 'modes'
-                for j in range(i+1, min(i+10, len(lines))):
-                    val_line = lines[j].strip()
-                    if val_line.startswith('['):
-                        matches = re.findall(r'\[([^\]]+)\]', val_line)
-                        for match in matches:
-                            for v in match.split(','):
-                                v = v.strip()
-                                if v and v not in capabilities['modes']:
-                                    capabilities['modes'].append(v)
-                        break
-                    elif '--resolution' in val_line.lower():
-                        break
+            # Format: --mode Color|Gray|Lineart [Color]
+            m = re.match(r'--mode\s+([^\[]+)', line)
+            if m:
+                for v in m.group(1).strip().split('|'):
+                    v = v.strip()
+                    if v and v not in capabilities['modes']:
+                        capabilities['modes'].append(v)
+                continue
             
-            elif '--resolution' in lower_line:
-                current_section = 'resolutions'
-                for j in range(i+1, min(i+10, len(lines))):
-                    val_line = lines[j].strip()
-                    if val_line.startswith('['):
-                        matches = re.findall(r'\[([^\]]+)\]', val_line)
-                        for match in matches:
-                            for v in match.split(','):
-                                v = v.strip()
-                                if v and v.isdigit() and v not in capabilities['resolutions']:
-                                    capabilities['resolutions'].append(v)
-                        break
+            # Format: --resolution 50|75|100|150dpi [50]
+            m = re.match(r'--resolution\s+([^\[]+)', line)
+            if m:
+                for v in m.group(1).strip().split('|'):
+                    v = re.sub(r'[^0-9]', '', v)  # strip "dpi" suffix
+                    if v and v not in capabilities['resolutions']:
+                        capabilities['resolutions'].append(v)
+                continue
         
         logger.info(f"Parsed capabilities: {capabilities}")
         
