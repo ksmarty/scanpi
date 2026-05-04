@@ -31,8 +31,18 @@ case "$SOURCE" in
         ;;
 esac
 
-# Convert to pdf and apply OCR
-convert image* "$FILENAME.pdf" 2>>stderr.log 1>>stdout.log
+# Convert to pdf using Pillow (avoids ImageMagick security policy issues)
+python3 -c "
+from PIL import Image
+import os
+import glob
+
+images = sorted(glob.glob('image-*.png'))
+if images:
+    imgs = [Image.open(f) for f in images]
+    imgs[0].save('$FILENAME.pdf', save_all=True, append_images=imgs[1:])
+"
+
 ocrmypdf -r -d -c --rotate-pages-threshold 0 "$FILENAME.pdf" "$FILENAME.ocr.pdf" 2>>stderr.log 1>>stdout.log
 # Sometimes ocrmypdf still has these files locked after, wait until they're done
 until ! lsof "stdout.log" >/dev/null 2>&1; do sleep 1s; done
