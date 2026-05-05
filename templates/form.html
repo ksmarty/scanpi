@@ -94,6 +94,7 @@
                             <span class="label-text font-bold text-primary"><i class="bi bi-upc mr-1"></i>Scanner Source</span>
                         </label>
                         <select class="select select-bordered select-sm w-full text-base h-10" id="source" name="source">
+                            <option value="Flatbed" selected>Flatbed</option>
                             {% for src in sources %}
                             <option value="{{ src }}">{{ src }}</option>
                             {% endfor %}
