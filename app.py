@@ -437,3 +437,42 @@ def api_preview_stream():
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)), debug=DEBUG)
+
+@app.route('/api/scans')
+def api_scans():
+    """List all previous scans in the scan directory."""
+    try:
+        scan_dir = os.environ.get('SCAN_DIRECTORY', '/scans')
+        if not os.path.exists(scan_dir):
+            return jsonify({'scans': []})
+        
+        scans = []
+        for item in sorted(os.listdir(scan_dir), reverse=True):
+            item_path = os.path.join(scan_dir, item)
+            if os.path.isdir(item_path):
+                pdf_file = os.path.join(item_path, f"{item}.pdf")
+                if os.path.exists(pdf_file):
+                    stat = os.stat(pdf_file)
+                    scans.append({
+                        'name': item,
+                        'path': f"{item}/{item}.pdf",
+                        'size': stat.st_size,
+                        'modified': stat.st_mtime
+                    })
+        return jsonify({'scans': scans})
+    except Exception as e:
+        logger.error(f"Error listing scans: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/scans/<path:filename>')
+def api_download_scan(filename):
+    """Download a specific scan file."""
+    try:
+        scan_dir = os.environ.get('SCAN_DIRECTORY', '/scans')
+        file_path = os.path.join(scan_dir, filename)
+        if not os.path.exists(file_path):
+            return jsonify({'error': 'File not found'}), 404
+        return send_file(file_path, as_attachment=True)
+    except Exception as e:
+        logger.error(f"Error downloading scan: {e}")
+        return jsonify({'error': str(e)}), 500

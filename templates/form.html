@@ -104,6 +104,19 @@
                     <details class="collapse collapse-arrow border border-base-300 bg-base-200 mt-2 mb-2 rounded-lg">
                         <summary class="collapse-title text-sm font-semibold text-base-content/80 px-4">
                             <div class="flex items-center">
+                                <i class="bi bi-folder mr-2"></i>Previous Scans
+                            </div>
+                        </summary>
+                        <div class="collapse-content px-2 py-2">
+                            <div id="scansList" class="space-y-2 max-h-48 overflow-y-auto">
+                                <div class="text-sm text-base-content/50 text-center py-2">Loading...</div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details class="collapse collapse-arrow border border-base-300 bg-base-200 mt-2 mb-2 rounded-lg">
+                        <summary class="collapse-title text-sm font-semibold text-base-content/80 px-4">
+                            <div class="flex items-center">
                                 <i class="bi bi-gear mr-2"></i>Advanced Settings
                             </div>
                         </summary>
@@ -754,6 +767,33 @@
         });
         
         loadDevices();
+        
+        async function loadScans() {
+            try {
+                const res = await fetch('/api/scans');
+                const data = await res.json();
+                const list = document.getElementById('scansList');
+                if (data.scans && data.scans.length > 0) {
+                    list.innerHTML = data.scans.map(s => `
+                        <div class="flex items-center justify-between bg-base-300 rounded px-2 py-1">
+                            <span class="text-sm truncate flex-1 mr-2" title="${s.name}">${s.name}</span>
+                            <a href="/api/scans/${encodeURIComponent(s.path)}" 
+                               class="btn btn-xs btn-primary btn-outline"
+                               download>
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </div>
+                    `).join('');
+                } else {
+                    list.innerHTML = '<div class="text-sm text-base-content/50 text-center py-2">No scans yet</div>';
+                }
+            } catch (e) {
+                console.error('Failed to load scans:', e);
+                document.getElementById('scansList').innerHTML = '<div class="text-sm text-error text-center py-2">Failed to load</div>';
+            }
+        }
+        
+        loadScans();
     </script>
 </body>
 </html>
