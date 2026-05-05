@@ -111,7 +111,7 @@ def root_path():
         if request.method == 'POST':
             name = f"{request.form['date']}-{request.form['name']}"
             mode = request.form['mode']
-            resolution = request.form['resolution']
+            resolution = request.form['resolution'].replace('dpi', '')
             source = request.form['source']
             scanner = request.form.get('scanner', '')
             edited_image = request.form.get('edited_image', '')
@@ -154,7 +154,7 @@ def root_path():
                 if scanner:
                     env_vars["SCANNER_DEVICE"] = scanner
                 
-                subprocess.run(['/bin/bash','scan_adf.sh'], env=env_vars)
+                subprocess.run(['/bin/bash', os.path.join(os.path.dirname(__file__), 'scan_adf.sh')], env=env_vars)
                 return render_root_path(default_date, message='Scan request submitted successfully!', selected_scanner=scanner)
         else:
             return render_root_path(default_date, selected_scanner=selected_scanner)
