@@ -338,6 +338,7 @@
                 });
                 
                 if (scanners.length === 1) {
+                    scannerSelect.value = scanners[0].id;
                     loadCapabilities(scanners[0].id);
                 }
             } catch (e) {
